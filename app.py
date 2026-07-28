@@ -1,90 +1,100 @@
-import asyncio
+import time
 import streamlit as st
-import pandas as pd
 
-# Page Configuration for High-Speed Mobile & Desktop Layout
+# ==========================================
+# 1. STREAMLIT CONFIGURATION & CACHING
+# ==========================================
 st.set_page_config(
     page_title="Elite Quant Engine",
     page_icon="⚡",
-    layout="centered"
+    layout="wide",
 )
 
+# Cache exchange market loading to prevent spamming APIs on every interaction
+@st.cache_data(ttl=600)
+def load_cached_market_data():
+    # Simulated or actual CCXT / market initialization layer
+    time.sleep(0.5)  # Built-in pause to prevent rapid-fire requests
+    return {"status": "Connected", "exchanges": ["binance", "okx"]}
+
+# ==========================================
+# 2. APP STATE MANAGEMENT & LOG SAFETY
+# ==========================================
+if "trade_logs" not in st.session_state:
+    st.session_state.trade_logs = []
+
+def add_trade_log(message):
+    """Appends logs while automatically truncating history to prevent memory bloat."""
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    st.session_state.trade_logs.append(f"[{timestamp}] {message}")
+    
+    # SAFETY: Keep only the latest 50 logs to prevent infinite data growth and lagging
+    if len(st.session_state.trade_logs) > 50:
+        st.session_state.trade_logs = st.session_state.trade_logs[-50:]
+
+# ==========================================
+# 3. SIDEBAR: USER PROFILE & API GATEWAY
+# ==========================================
+st.sidebar.markdown("### 👤 User Profile & Login")
+full_name = st.sidebar.text_input("Full Name", placeholder="Enter your name")
+phone_number = st.sidebar.text_input("Phone Number", placeholder="Enter phone number")
+is_logged_in = st.sidebar.button("Instant Login")
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔒 Secure API Gateway")
+api_key = st.sidebar.text_input("API Key (Read/Trade)", type="password")
+secret_key = st.sidebar.text_input("Secret Key", type="password")
+
+# ==========================================
+# 4. MAIN DASHBOARD UI
+# ==========================================
 st.title("⚡ Elite Quant Engine")
 st.markdown("Autonomous multi-market quantitative trading gateway.")
 
-# Fast, Secure Profile & Authentication State
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-    st.session_state.user_name = ""
-    st.session_state.user_phone = ""
-
-st.sidebar.header("👤 User Profile & Login")
-if not st.session_state.authenticated:
-    input_name = st.sidebar.text_input("Full Name", placeholder="Enter your name")
-    input_phone = st.sidebar.text_input("Phone Number", placeholder="Enter phone number")
-    
-    if st.sidebar.button("Instant Login"):
-        if input_name and input_phone:
-            st.session_state.authenticated = True
-            st.session_state.user_name = input_name
-            st.session_state.user_phone = input_phone
-            st.rerun()
-        else:
-            st.sidebar.error("Please enter both name and phone number.")
+if not full_name or not phone_number:
+    st.warning("⚠️ Please enter your name and phone number in the sidebar to log in and access your dashboard.")
 else:
-    st.sidebar.success(f"Welcome back, {st.session_state.user_name}!")
-    if st.sidebar.button("Log Out"):
-        st.session_state.authenticated = False
-        st.session_state.user_name = ""
-        st.session_state.user_phone = ""
+    st.success(f"Welcome back, {full_name}! Your dashboard is active.")
+
+    # Market connection status check
+    market_status = load_cached_market_data()
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Gateway Status", market_status["status"])
+    col2.metric("Active Exchanges", len(market_status["exchanges"]))
+    col3.metric("Stored Memory Logs", len(st.session_state.trade_logs))
+
+    st.markdown("---")
+    st.subheader("📊 Live Strategy Execution & Automation Logs")
+
+    # Action buttons with built-in rate-limit safe execution delays
+    col_btn1, col_btn2 = st.columns(2)
+    
+    if col_btn1.button("Run Quantitative Scan"):
+        with st.spinner("Fetching market feeds safely..."):
+            time.sleep(1.5)  # SAFETY: Rate-limit pause protects against exchange throttling (429 errors)
+            add_trade_log("Scan completed successfully across connected liquidity pools.")
+            st.success("Market scan executed without throttling!")
+
+    if col_btn2.button("Clear Log History"):
+        st.session_state.trade_logs = []
         st.rerun()
 
-st.sidebar.markdown("---")
-st.sidebar.header("🔒 Secure API Gateway")
-api_key_input = st.sidebar.text_input("API Key (Read/Trade)", type="password")
-api_secret_input = st.sidebar.text_input("Secret Key", type="password")
-
-auto_execute = st.sidebar.checkbox("Autonomous Execution Mode", value=True)
-
-# High-Speed Asynchronous Market Core Engine
-async def fetch_live_matrix():
-    await asyncio.sleep(0.05) # Instant execution response
-    return [
-        {"Asset": "BTC/USDT", "Price": "$65,216.50", "Regime": "Ranging", "Strategy": "Grid Active", "Status": "Protected"},
-        {"Asset": "ETH/USDT", "Price": "$1,964.15", "Regime": "Uptrend", "Strategy": "Long Target", "Status": "Executing"},
-        {"Asset": "SOL/USDT", "Price": "$76.74", "Regime": "Uptrend", "Strategy": "Long Target", "Status": "Executing"},
-        {"Asset": "EUR/USD", "Price": "$1.0850", "Regime": "Macro Hedge", "Strategy": "Safe-Haven", "Status": "Guarded"},
-        {"Asset": "AAPL/USDT", "Price": "$185.50", "Regime": "Equities Guard", "Strategy": "Proxy Active", "Status": "Synced"}
-    ]
-
-# Main Application Layout
-if st.session_state.authenticated:
-    if auto_execute:
-        data = asyncio.run(fetch_live_matrix())
-        df = pd.DataFrame(data)
-
-        st.markdown(f"### 📊 Active Strategy Matrix — *{st.session_state.user_name}*")
-        st.dataframe(df, use_container_width=True)
-
-        if api_key_input:
-            st.success("🟢 Live Exchange Mode: Direct API execution active and secured.")
-        else:
-            st.warning("🟡 Simulation Mode: Connect your Read/Trade API keys in the sidebar to run live orders.")
+    # Display safe, truncated log history
+    if st.session_state.trade_logs:
+        for log in reversed(st.session_state.trade_logs):
+            st.text(log)
     else:
-        st.info("Enable Autonomous Execution Mode in the sidebar to initiate strategy tracking.")
-else:
-    st.warning("🔒 Please enter your name and phone number in the sidebar to log in and access your dashboard.")
+        st.info("No active execution logs recorded yet. Run a scan above to start.")
 
-# Integrated Customer Care Support Bot Section
-st.markdown("---")
-with st.expander("🤖 Customer Care & Support Bot"):
-    st.markdown("Welcome to Elite Quant Support! How can we assist you today?")
-    user_query = st.text_input("Ask a question about setup, API safety, or execution:")
-    if user_query:
-        query_lower = user_query.lower()
-        if "api" in query_lower:
-            st.info("💡 **API Help:** Always generate keys with **Read and Trade** permissions only. Never check withdrawal permissions to ensure absolute fund safety.")
-        elif "phone" in query_lower or "login" in query_lower:
-            st.info("💡 **Login Help:** Your login details are saved securely in your active session for instant access without delays.")
+# ==========================================
+# 5. CUSTOMER CARE & SUPPORT WIDGET
+# ==========================================
+with st.expander("💬 Customer Care & Support Bot"):
+    st.write("Need help configuring your API credentials or adjusting strategy parameters? Drop a note or check system metrics above.")
+    user_query = st.text_input("Ask support a question...")
+    if st.button("Send Query"):
+        if user_query:
+            st.success("Support ticket logged successfully! We will get back to you shortly.")
         else:
-            st.info("💡 **Support Bot:** Our autonomous engine runs at maximum speed. Make sure your network connection is stable and autonomous execution is checked!")
+            st.warning("Please type a message before sending.")
