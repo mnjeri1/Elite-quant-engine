@@ -1,4 +1,4 @@
-# elite_quant_engine_production.py
+# elite_quant_engine.py
 import asyncio
 import math
 import auth_manager
@@ -39,11 +39,27 @@ def calculate_kelly_fraction(win_rate=0.54, reward_to_risk=2.0):
     raw_kelly = win_rate - (loss_rate / reward_to_risk)
     return max(0.0, min(raw_kelly * 0.25, MAX_TOTAL_RISK_CAP))
 
+async def safe_api_call(coro_func, *args, retries=3, delay=1.5, **kwargs):
+    """Wraps any exchange API call with exponential backoff to handle network drops and rate limits."""
+    for attempt in range(retries):
+        try:
+            return await coro_func(*args, **kwargs)
+        except Exception as e:
+            if attempt == retries - 1:
+                raise e
+            wait_time = delay * (2 ** attempt)
+            await asyncio.sleep(wait_time)
+
 async def fetch_watchlist_returns(exchange, watchlist):
-    """Concurrently fetches OHLCV datasets to prevent I/O blocking loops."""
+    """Concurrently fetches OHLCV datasets with network-resilient wrappers."""
     async def fetch_single(item):
         try:
-            ohlcv = await exchange.fetch_ohlcv(item['symbol'], timeframe='1h', limit=LOOKBACK_CANDLES)
+            ohlcv = await safe_api_call(
+                exchange.fetch_ohlcv, 
+                item['symbol'], 
+                timeframe='1h', 
+                limit=LOOKBACK_CANDLES
+            )
             if not ohlcv or len(ohlcv) < 24: return item['symbol'], None
             closes = [candle[4] for candle in ohlcv]
             returns = [(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, len(closes))]
@@ -55,13 +71,19 @@ async def fetch_watchlist_returns(exchange, watchlist):
     return {sym: rets for sym, rets in results if rets is not None}
 
 async def execute_strategy_and_trade(exchange, item, correlations, free_usdt, live_execution=True):
-    """Executes dual-market strategy analysis with high-speed precision logic."""
+    """Executes multi-asset (Crypto, Forex, Stocks) strategy analysis with shorting capabilities for downtrends."""
     symbol = item['symbol']
-    market_type = item['type']  # 'spot' or 'futures'
+    asset_class = item['class']  # 'crypto', 'forex', or 'stock'
+    market_type = item['type']   # 'spot', 'futures', or 'margin'
 
     try:
-        # Step 1: Rapid Data Pipeline Fetch
-        ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='1h', limit=LOOKBACK_CANDLES)
+        # Step 1: Rapid Data Pipeline Fetch via safe wrapper
+        ohlcv = await safe_api_call(
+            exchange.fetch_ohlcv, 
+            symbol, 
+            timeframe='1h', 
+            limit=LOOKBACK_CANDLES
+        )
         if not ohlcv or len(ohlcv) < 24: raise ValueError("Insufficient candle history.")
             
         closes = [candle[4] for candle in ohlcv]
@@ -70,20 +92,23 @@ async def execute_strategy_and_trade(exchange, item, correlations, free_usdt, li
         price_change_pct = ((current_price - start_price) / start_price) * 100
         rsi = calculate_rsi(closes)
         
-        # Step 2: Dynamic Strategy Regime Selection
+        # Step 2: Dynamic Strategy Regime Selection (Enabling Shorting on Downtrends)
         side, reward_risk = None, 2.0
         if price_change_pct > 1.5 and rsi < 68:
-            regime, strategy, side = "🚀 Strong Uptrend", "[MOMENTUM LONG]", "buy"
+            regime, strategy, side = "🚀 Strong Uptrend", f"[{asset_class.upper()} MOMENTUM LONG]", "buy"
             tp_pct, sl_pct = 1.04, 0.985  
             reward_risk = 2.66
         elif price_change_pct < -1.5 and rsi > 32:
-            if market_type == 'spot':
-                return symbol, "💤 Spot Neutralized", current_price, "[SPOT SHORT BYPASSED]", "Spot ignores shorting."
-            regime, strategy, side = "⚠️ Strong Downtrend", "[HEDGE SHORT]", "sell"
+            # If asset is spot and not margin-enabled, spot can't short. But if futures/margin/forex, profit via shorting!
+            if market_type == 'spot' and asset_class == 'stock':
+                return symbol, "💤 Stock Neutralized", current_price, "[CASH STANDBY]", "Spot stocks ignore shorting."
+            
+            regime, strategy, side = "⚠️ Strong Downtrend", f"[{asset_class.upper()} PROFIT SHORT]", "sell"
+            # For short positions, TP is lower than entry, SL is higher than entry
             tp_pct, sl_pct = 0.97, 1.015  
             reward_risk = 2.00
         elif rsi < 30:
-            regime, strategy, side = "⚖️ Oversold Exhaustion", "[MEAN REVERSION LONG]", "buy"
+            regime, strategy, side = "⚖️ Oversold Exhaustion", f"[{asset_class.upper()} MEAN REVERSION LONG]", "buy"
             tp_pct, sl_pct = 1.02, 0.99   
             reward_risk = 2.00
         else:
@@ -101,43 +126,46 @@ async def execute_strategy_and_trade(exchange, item, correlations, free_usdt, li
         if final_notional < MIN_NOTIONAL_USDT:
             return symbol, regime, current_price, strategy, f"Risk Blocked: Notional value (${final_notional:.2f}) below threshold limit."
 
-        action = f"Signal Verified | Size: {precision_amount} | Market: {market_type.upper()}"
+        action = f"Signal Verified | Size: {precision_amount} | Class: {asset_class.upper()} ({market_type.upper()})"
 
-        # Step 4: Low-Latency Branching Execution Layer
+        # Step 4: Low-Latency Execution Layer for Multi-Asset Classes
         if live_execution and side:
             try:
-                if market_type == 'futures':
+                if market_type in ['futures', 'margin']:
                     try: await exchange.set_margin_mode('isolated', symbol)
                     except Exception: pass
                     try: await exchange.set_leverage(5, symbol)
                     except Exception: pass
                     
-                    entry_order = await exchange.create_order(symbol, 'market', side, precision_amount)
+                    entry_order = await safe_api_call(exchange.create_order, symbol, 'market', side, precision_amount)
                     exec_price = entry_order.get('price', current_price) or current_price
                     
-                    tp_price = float(exchange.price_to_precision(symbol, exec_price * tp_pct))
-                    sl_price = float(exchange.price_to_precision(symbol, exec_price * sl_pct))
-                    exit_side = 'sell' if side == 'buy' else 'buy'
+                    if side == 'buy':
+                        tp_price = float(exchange.price_to_precision(symbol, exec_price * tp_pct))
+                        sl_price = float(exchange.price_to_precision(symbol, exec_price * sl_pct))
+                        exit_side = 'sell'
+                    else:  # Short position targets
+                        tp_price = float(exchange.price_to_precision(symbol, exec_price * 0.97))  # Short TP drops
+                        sl_price = float(exchange.price_to_precision(symbol, exec_price * 1.015)) # Short SL rises
+                        exit_side = 'buy'
                     
-                    # Precise futures bracket orders with profit retention & stop protection
-                    await exchange.create_order(symbol, 'limit', exit_side, precision_amount, tp_price, params={'reduceOnly': True})
+                    await safe_api_call(exchange.create_order, symbol, 'limit', exit_side, precision_amount, tp_price, params={'reduceOnly': True})
                     stop_params = {'stopPrice': sl_price, 'triggerPrice': sl_price, 'reduceOnly': True}
-                    await exchange.create_order(symbol, 'stop_market', exit_side, precision_amount, price=None, params=stop_params)
+                    await safe_api_call(exchange.create_order, symbol, 'stop_market', exit_side, precision_amount, price=None, params=stop_params)
                     
-                    action += f" -> [FUTURES ID: {entry_order.get('id')} | TP: {tp_price} | SL: {sl_price}]"
+                    action += f" -> [{side.upper()} ID: {entry_order.get('id')} | TP: {tp_price} | SL: {sl_price}]"
 
                 elif market_type == 'spot':
                     if side == 'buy':
-                        entry_order = await exchange.create_order(symbol, 'market', 'buy', precision_amount)
+                        entry_order = await safe_api_call(exchange.create_order, symbol, 'market', 'buy', precision_amount)
                         exec_price = entry_order.get('price', current_price) or current_price
                         
                         tp_price = float(exchange.price_to_precision(symbol, exec_price * tp_pct))
                         sl_price = float(exchange.price_to_precision(symbol, exec_price * sl_pct))
                         
-                        # Spot profit targets and stop-loss safeguard orders
-                        await exchange.create_order(symbol, 'limit', 'sell', precision_amount, tp_price)
+                        await safe_api_call(exchange.create_order, symbol, 'limit', 'sell', precision_amount, tp_price)
                         stop_params = {'stopPrice': sl_price, 'triggerPrice': sl_price}
-                        await exchange.create_order(symbol, 'stop_market', 'sell', precision_amount, price=None, params=stop_params)
+                        await safe_api_call(exchange.create_order, symbol, 'stop_market', 'sell', precision_amount, price=None, params=stop_params)
                         
                         action += f" -> [SPOT BUY ID: {entry_order.get('id')} | TP: {tp_price} | SL: {sl_price}]"
             
@@ -149,20 +177,22 @@ async def execute_strategy_and_trade(exchange, item, correlations, free_usdt, li
     except Exception as e:
         return symbol, "Execution Paused", 0.0, "[SHIELD ACTIVE]", f"Feed Protected: {str(e)}"
 
-async def master_trading_engine():
-    """Asynchronous orchestration core managed for zero-lag pipeline execution."""
-    LIVE_EXECUTION = True   
+async def master_trading_engine(live_override=True):
+    """Asynchronous orchestration core supporting Crypto, Forex, and Stocks."""
+    LIVE_EXECUTION = live_override   
     
     auth_manager.initialize_database()
     exchange = auth_manager.get_authenticated_exchange(exchange_id='binance')
     
+    # Extended Multi-Asset Watchlist (Crypto, Forex, Stocks)
     watchlist = [
-        {'symbol': 'BTC/USDT', 'type': 'spot'},
-        {'symbol': 'ETH/USDT:USDT', 'type': 'futures'},
-        {'symbol': 'SOL/USDT:USDT', 'type': 'futures'}
+        {'symbol': 'BTC/USDT', 'class': 'crypto', 'type': 'spot'},
+        {'symbol': 'ETH/USDT:USDT', 'class': 'crypto', 'type': 'futures'},
+        {'symbol': 'EUR/USDT:USDT', 'class': 'forex', 'type': 'futures'},  # Forex via Crypto-Margined / Broker Contracts
+        {'symbol': 'AAPL/USDT:USDT', 'class': 'stock', 'type': 'futures'}  # Tokenized Stocks / Futures Feed
     ]
     
-    print(f"✨ ELITE QUANT ENGINE ACTIVE | Dual Spot/Futures Production Flag: {LIVE_EXECUTION}")
+    print(f"✨ ELITE MULTI-ASSET ENGINE ACTIVE | Production Flag: {LIVE_EXECUTION}")
     
     try:
         await exchange.load_markets()
@@ -181,7 +211,7 @@ async def master_trading_engine():
         free_usdt = 0.0
         if LIVE_EXECUTION:
             try:
-                balance = await exchange.fetch_balance()
+                balance = await safe_api_call(exchange.fetch_balance)
                 free_usdt = balance.get('USDT', {}).get('free', 0.0)
                 if free_usdt <= 0:
                     print("❌ Critical Risk Error: USDT balance unparseable or zero. Aborting execution.")
@@ -197,7 +227,7 @@ async def master_trading_engine():
             if isinstance(res, tuple) and len(res) == 5:
                 symbol, regime, price, strategy, action = res
                 price_str = f"${price:,.2f}" if price > 10 else f"${price:,.4f}"
-                print(f"◆ {symbol:<15} | Price: {price_str:<10} | Matrix: {regime}")
+                print(f"◆ {symbol:<18} | Price: {price_str:<10} | Matrix: {regime}")
                 print(f"  ↳ {strategy} -> {action}\n")
                 auth_manager.log_trade_to_db(symbol, regime, price, strategy, action)
             else:
@@ -210,4 +240,4 @@ async def master_trading_engine():
         print("🔒 Secure API and Database connection channels cleanly disengaged.")
 
 if __name__ == "__main__":
-    asyncio.run(master_trading_engine())
+    asyncio.run(master_trading_engine(live_override=True))
