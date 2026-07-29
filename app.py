@@ -71,4 +71,13 @@ if __name__ == "__main__":
     print("🤖 Launching background crypto, forex, and stock scanning parameters...\n")
     
     # Hatua ya 3: Kukabidhi bendera ya usalama moja kwa moja kwenye multi-asset engine kwa kasi ya juu
-    asyncio.run(elite_quant_engine.master_trading_engine(live_override=LIVE_EXECUTION))
+    # WEKA HII MPYA BADALA YAKE
+if __name__ == "__main__":
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(elite_quant_engine.master_trading_engine(live_override=LIVE_EXECUTION))
+    except RuntimeError:
+        # Hii inazuia mgongano wa loop kama Streamlit imekwishaianzisha
+        asyncio.create_task(elite_quant_engine.master_trading_engine(live_override=LIVE_EXECUTION))
+
