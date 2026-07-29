@@ -71,15 +71,21 @@ if __name__ == "__main__":
     print("🤖 Launching background crypto, forex, and stock scanning parameters...\n")
     
     # Hatua ya 3: Kukabidhi bendera ya usalama moja kwa moja kwenye multi-asset engine kwa kasi ya juu
-    # Badilisha sehemu ya mwisho iwe hivi ili kuepuka mgongano na loop ya Streamlit
-if __name__ == "__main__":
-    try:
-        # Inajaribu kuendesha kupitia asyncio.run ya kawaida
-        asyncio.run(elite_quant_engine.master_trading_engine(live_override=LIVE_EXECUTION))
-    except RuntimeError:
-        # Ikitokea loop ipo tayari, inaunganisha kazi hiyo kwenye loop hiyo iliyopo
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(elite_quant_engine.master_trading_engine(live_override=LIVE_EXECUTION))
-        else:
-            loop.run_until_complete(elite_quant_engine.master_trading_engine(live_override=LIVE_EXECUTION))
+# Weka kitufe kwenye dashboard ili kuendesha mfumo salama
+st.subheader("🚀 Udhibiti wa Injini ya Biashara (Trading Engine Control)")
+
+if st.button("Anzisha Master Trading Engine"):
+    with st.spinner("Inaanzisha mfumo wa biashara..."):
+        try:
+            # Kutumia asyncio.run ndani ya kitufe salama cha Streamlit
+            import nest_asyncio
+            nest_asyncio.apply()
+            asyncio.run(elite_quant_engine.master_trading_engine(live_override=LIVE_EXECUTION))
+            st.success("Mfumo umezinduliwa kikamilifu!")
+        except Exception as e:
+            st.error(f"Hitilafu imetokea: {e}")
+else:
+    st.info("Bonyeza kitufe hapo juu kuwasha injini ya biashara.")
+
+
+    
