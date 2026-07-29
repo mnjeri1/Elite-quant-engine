@@ -87,6 +87,7 @@ if st.button("Anzisha Master Trading Engine"):
             st.error(f"Hitilafu imetokea: {e}")
 else:
     st.info("Bonyeza kitufe hapo juu kuwasha injini ya biashara.")
-
+else:
+    st.warning("⚠️ Tafadhali jisajili au ingia kwa kutumia namba yako ya simu kwenye upande wa kushoto (Sidebar) ili kuona na kuendesha mfumo.")
 
     
