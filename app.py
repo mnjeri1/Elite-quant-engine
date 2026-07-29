@@ -3,7 +3,8 @@ import os
 import sqlite3
 import asyncio
 import ccxt.async_support as ccxt
-import elite_quant_engine  # Inasoma msimbo wa quant_engine kiotomatiki
+# Inasoma msimbo wa quant_engine kiotomatiki
+import elite_quant_engine
 
 def initialize_database():
     """
