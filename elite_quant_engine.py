@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-# Optional real SDK imports for equities (Alpaca)
+# Optional real SDK imports for equities (Alpaca Trading & Historical Data)
 try:
     from alpaca.trading.client import TradingClient
     from alpaca.trading.requests import (
@@ -14,6 +14,8 @@ try:
         StopLossRequest
     )
     from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
+    from alpaca.data.historical import StockHistoricalDataClient
+    from alpaca.data.requests import StockLatestTradeRequest
     ALPACA_SDK_AVAILABLE = True
 except ImportError:
     ALPACA_SDK_AVAILABLE = False
@@ -48,14 +50,17 @@ class UniversalMultiBrokerGateway:
         self.credentials = credentials
         self.exchanges = {}
         self.session: Optional[aiohttp.ClientSession] = None
+        self.stock_data_client = None
 
     async def initialize_exchanges(self):
-        # Initialize persistent aiohttp session for REST protocols (OANDA / general http hooks)
+        # Initialize persistent aiohttp session for REST protocols (OANDA / general HTTP hooks)
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession()
 
-        # 1. Initialize Crypto Spot (Binance)
+        stocks_creds = self.credentials.get("stocks", {})
         binance_creds = self.credentials.get("binance", {})
+
+        # 1. Initialize Crypto Spot (Binance)
         if binance_creds.get("api_key") and binance_creds.get("secret_key"):
             if "CRYPTO_SPOT" not in self.exchanges:
                 self.exchanges["CRYPTO_SPOT"] = ccxt.binance({
@@ -76,8 +81,7 @@ class UniversalMultiBrokerGateway:
                 })
                 logger.info("[CCXT] Binance Futures live connection initialized.")
 
-        # 3. Initialize Stocks (Alpaca)
-        stocks_creds = self.credentials.get("stocks", {})
+        # 3. Initialize Stocks (Alpaca Trading & Historical Data Clients)
         if stocks_creds.get("api_key") and stocks_creds.get("secret_key") and ALPACA_SDK_AVAILABLE:
             if "STOCKS" not in self.exchanges:
                 self.exchanges["STOCKS"] = TradingClient(
@@ -85,7 +89,11 @@ class UniversalMultiBrokerGateway:
                     secret_key=stocks_creds["secret_key"],
                     paper=stocks_creds.get("paper", True) 
                 )
-                logger.info("[ALPACA] Equities live connection initialized.")
+                self.stock_data_client = StockHistoricalDataClient(
+                    api_key=stocks_creds["api_key"],
+                    secret_key=stocks_creds["secret_key"]
+                )
+                logger.info("[ALPACA] Equities trading and data feeds initialized.")
 
     async def close_exchanges(self):
         for key in ["CRYPTO_SPOT", "CRYPTO_FUTURE"]:
@@ -98,17 +106,29 @@ class UniversalMultiBrokerGateway:
 
     async def execute_order(self, order: LiveTradeOrder) -> bool:
         try:
-            # --- CRYPTO EXECUTION (Spot & Futures via CCXT with native SL/TP params) ---
-            if order.asset_class in ["CRYPTO_SPOT", "CRYPTO_FUTURE"] and order.asset_class in self.exchanges:
-                exchange = self.exchanges[order.asset_class]
-                logger.info(f"[{order.asset_class} LIVE] Dispatching bracket order for {order.symbol}...")
-                
-                # Attach native exchange-side safety controls
+            # --- CRYPTO EXECUTION (Derivatives / Futures via CCXT native brackets) ---
+            if order.asset_class == "CRYPTO_FUTURE" and "CRYPTO_FUTURE" in self.exchanges:
+                exchange = self.exchanges["CRYPTO_FUTURE"]
+                logger.info(f"[CRYPTO_FUTURE LIVE] Dispatching bracket order for {order.symbol}...")
                 params = {
                     'stopLossPrice': order.stop_loss,
                     'takeProfitPrice': order.take_profit
                 }
                 await exchange.create_order(order.symbol, 'market', order.side.lower(), order.volume, params=params)
+                return True
+
+            # --- CRYPTO EXECUTION (Spot Market Order + Subsequent Safety Triggers) ---
+            elif order.asset_class == "CRYPTO_SPOT" and "CRYPTO_SPOT" in self.exchanges:
+                exchange = self.exchanges["CRYPTO_SPOT"]
+                logger.info(f"[CRYPTO_SPOT LIVE] Executing spot entry & conditional bracket for {order.symbol}...")
+                
+                # 1. Execute primary market fill
+                await exchange.create_order(order.symbol, 'market', order.side.lower(), order.volume)
+                
+                # 2. Submit independent safety triggers for spot portfolios
+                inverted_side = 'sell' if order.side.upper() == 'BUY' else 'buy'
+                await exchange.create_order(order.symbol, 'STOP_MARKET', inverted_side, order.volume, None, {'stopPrice': order.stop_loss})
+                await exchange.create_order(order.symbol, 'TAKE_PROFIT_MARKET', inverted_side, order.volume, None, {'stopPrice': order.take_profit})
                 return True
 
             # --- STOCKS EXECUTION (Alpaca Native Bracket Orders) ---
@@ -117,7 +137,6 @@ class UniversalMultiBrokerGateway:
                 logger.info(f"[ALPACA LIVE] Routing equity bracket order for {order.symbol}...")
                 
                 side_enum = OrderSide.BUY if order.side.upper() == "BUY" else OrderSide.SELL
-                
                 market_order_data = MarketOrderRequest(
                     symbol=order.symbol,
                     qty=order.volume,
@@ -151,14 +170,13 @@ class UniversalMultiBrokerGateway:
                 
                 units_val = order.volume if order.side.upper() == "BUY" else -order.volume
                 
-                # Native OANDA v20 payload packaging market order with attached bracket triggers
                 payload = {
                     "order": {
                         "units": str(units_val),
                         "instrument": order.symbol,
                         "type": "MARKET",
                         "timeInForce": "FOK",
-                        "positionFill": "DEFAULT",
+                        "positionFill": "REDUCE_FIRST",  # Cleanly handles reversals or flat entries
                         "takeProfitOnFill": {"price": str(order.take_profit), "timeInForce": "GTC"},
                         "stopLossOnFill": {"price": str(order.stop_loss), "timeInForce": "GTC"}
                     }
@@ -225,10 +243,11 @@ class ZeroLagMultiMarketEngine:
                 ticker = await self.gateway.exchanges[asset_class].fetch_ticker(symbol)
                 return float(ticker['last'])
                 
-            elif asset_class == "STOCKS" and "STOCKS" in self.gateway.exchanges:
-                client = self.gateway.exchanges["STOCKS"]
-                bar = client.get_stock_latest_trade(symbol)
-                return float(bar.price)
+            elif asset_class == "STOCKS" and self.gateway.stock_data_client:
+                req = StockLatestTradeRequest(symbol_or_symbols=symbol)
+                latest_trade = self.gateway.stock_data_client.get_stock_latest_trade(req)
+                if symbol in latest_trade:
+                    return float(latest_trade[symbol].price)
                 
             elif asset_class == "FOREX":
                 forex_creds = self.gateway.credentials.get("forex", {})
@@ -249,7 +268,6 @@ class ZeroLagMultiMarketEngine:
                 async with self.gateway.session.get(url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        # OANDA returns bid/ask arrays; taking mid price or closest executable ask
                         prices = data.get("prices", [])
                         if prices:
                             bids = float(prices[0]["bids"][0]["price"])
@@ -276,9 +294,8 @@ class ZeroLagMultiMarketEngine:
                     if current_price is None:
                         continue
 
-                    strategy = StrategyResearchEngine.identify_optimal_strategy(volatility=0.03, trend_strength=0.75)
+                    StrategyResearchEngine.identify_optimal_strategy(volatility=0.03, trend_strength=0.75)
 
-                    # Monitor positions locally for trailing features or telemetry logging
                     for order in [o for o in self.active_orders if o.symbol == symbol and o.is_active]:
                         if current_price > order.highest_price:
                             order.highest_price = current_price
