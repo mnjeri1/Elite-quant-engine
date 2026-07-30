@@ -1,3 +1,4 @@
+import streamlit
 import sqlite3
 import hashlib
 import os
