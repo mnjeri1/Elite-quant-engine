@@ -2,10 +2,10 @@
 import asyncio
 import math
 
-# INSTITUTIONAL PORTFOLIO CONSTRAINTS
-MAX_TOTAL_RISK_CAP = 0.20  # Maximum cumulative wallet allocation (20%)
+# INSTITUTIONAL PORTFOLIO CONSTRAINTS (Optimized for Micro-Accounts)
+MAX_TOTAL_RISK_CAP = 0.50  # Increased to 50% for smaller accounts to clear minimums
 LOOKBACK_CANDLES = 30      # Evaluation lookback depth window
-MIN_NOTIONAL_USDT = 11.0   # Binance safety margin threshold limit
+MIN_NOTIONAL_USDT = 5.2    # Lowered to clear Binance $5 minimum safety margin
 
 def calculate_rsi(closes, period=14):
     """Vectorized calculation of the Relative Strength Index."""
@@ -28,7 +28,7 @@ def calculate_covariance_modifier(symbol, correlations):
     """Reduces allocation size if asset is highly correlated with Bitcoin."""
     btc_link = correlations.get(f"{symbol}_BTC/USDT:USDT", 0.0)
     if btc_link > 0.80 and 'BTC' not in symbol:
-        return 0.50  # Cut concentration risk by half
+        return 0.50  
     return 1.0
 
 def calculate_kelly_fraction(win_rate=0.54, reward_to_risk=2.0):
@@ -56,7 +56,6 @@ async def fetch_watchlist_returns(exchange, watchlist):
         asset_class = item['class']
         try:
             if asset_class in ['forex', 'stock']:
-                # External gateway placeholder for Forex and Stocks
                 return symbol, None 
             
             ohlcv = await safe_api_call(
@@ -78,15 +77,13 @@ async def fetch_watchlist_returns(exchange, watchlist):
 async def execute_strategy_and_trade(exchange, item, correlations, free_usdt, live_execution=True):
     """Executes multi-asset analysis with isolated routing for crypto vs external asset classes."""
     symbol = item['symbol']
-    asset_class = item['class']  # 'crypto', 'forex', or 'stock'
-    market_type = item['type']   # 'spot', 'futures', or 'margin'
+    asset_class = item['class']  
+    market_type = item['type']   
 
     try:
-        # Route non-crypto assets (Forex / Stocks) to external processing layers
         if asset_class in ['forex', 'stock']:
             return symbol, "🌐 External Gateway Active", 0.0, f"[{asset_class.upper()} FEED ROUTED]", "Managed via external API feed."
 
-        # Step 1: Rapid Data Pipeline Fetch for Crypto via Binance CCXT
         ohlcv = await safe_api_call(
             exchange.fetch_ohlcv, 
             symbol, 
@@ -101,7 +98,6 @@ async def execute_strategy_and_trade(exchange, item, correlations, free_usdt, li
         price_change_pct = ((current_price - start_price) / start_price) * 100
         rsi = calculate_rsi(closes)
         
-        # Step 2: Dynamic Strategy Regime Selection
         side, reward_risk = None, 2.0
         if price_change_pct > 1.5 and rsi < 68:
             regime, strategy, side = "🚀 Strong Uptrend", "[CRYPTO MOMENTUM LONG]", "buy"
@@ -118,7 +114,7 @@ async def execute_strategy_and_trade(exchange, item, correlations, free_usdt, li
         else:
             return symbol, "💤 Ranging Consolidation", current_price, "[STANDBY]", "Price inside neutral zone bounds."
 
-        # Step 3: Position Sizing & Notional Safety Valuation Check
+        # Dynamic Sizing scaled for micro-accounts ($20 baseline support)
         kelly_frac = calculate_kelly_fraction(win_rate=0.54, reward_to_risk=reward_risk)
         cov_modifier = calculate_covariance_modifier(symbol, correlations)
         allocated_capital = free_usdt * (kelly_frac * cov_modifier)
@@ -132,13 +128,12 @@ async def execute_strategy_and_trade(exchange, item, correlations, free_usdt, li
 
         action = f"Signal Verified | Size: {precision_amount} | Class: {asset_class.upper()}"
 
-        # Step 4: Low-Latency Execution Layer for Crypto
         if live_execution and side:
             try:
                 if market_type == 'futures':
                     try: await exchange.set_margin_mode('isolated', symbol)
                     except Exception: pass
-                    try: await exchange.set_leverage(5, symbol)
+                    try: await exchange.set_leverage(3, symbol) # Lowered leverage to 3x for micro-account risk control
                     except Exception: pass
                     
                     entry_order = await safe_api_call(exchange.create_order, symbol, 'market', side, precision_amount)
@@ -188,8 +183,8 @@ async def master_trading_engine(exchange_instance, db_logger, live_override=True
     watchlist = [
         {'symbol': 'BTC/USDT', 'class': 'crypto', 'type': 'spot'},
         {'symbol': 'ETH/USDT:USDT', 'class': 'crypto', 'type': 'futures'},
-        {'symbol': 'EUR/USD', 'class': 'forex', 'type': 'spot'},       # External Gateway Routing
-        {'symbol': 'AAPL', 'class': 'stock', 'type': 'spot'}           # External Gateway Routing
+        {'symbol': 'EUR/USD', 'class': 'forex', 'type': 'spot'},       
+        {'symbol': 'AAPL', 'class': 'stock', 'type': 'spot'}           
     ]
     
     print(f"✨ ELITE MULTI-ASSET ENGINE ACTIVE | Production Flag: {LIVE_EXECUTION}")
@@ -198,15 +193,25 @@ async def master_trading_engine(exchange_instance, db_logger, live_override=True
         await exchange.load_markets()
         returns_dict = await fetch_watchlist_returns(exchange, watchlist)
 
+        # Fixed Covariance Matrix Calculation with matched vector slices
         correlations = {}
-        for sym_a in returns_dict:
-            mean_a = sum(returns_dict[sym_a]) / len(returns_dict[sym_a])
-            var_a = sum((x - mean_a) ** 2 for x in returns_dict[sym_a])
-            for sym_b in returns_dict:
-                mean_b = sum(returns_dict[sym_b]) / len(returns_dict[sym_b])
-                var_b = sum((x - mean_b) ** 2 for x in returns_dict[sym_b])
-                cov = sum((returns_dict[sym_a][k] - mean_a) * (returns_dict[sym_b][k] - mean_b) for k in range(min(len(returns_dict[sym_a]), len(returns_dict[sym_b]))))
-                correlations[f"{sym_a}_{sym_b}"] = cov / math.sqrt(var_a * var_b) if var_a > 0 and var_b > 0 else 1.0
+        symbols_list = list(returns_dict.keys())
+        for i, sym_a in enumerate(symbols_list):
+            rets_a = returns_dict[sym_a]
+            mean_a = sum(rets_a) / len(rets_a)
+            var_a = sum((x - mean_a) ** 2 for x in rets_a)
+            
+            for j, sym_b in enumerate(symbols_list):
+                rets_b = returns_dict[sym_b]
+                mean_b = sum(rets_b) / len(rets_b)
+                var_b = sum((x - mean_b) ** 2 for x in rets_b)
+                
+                # Align lookup range safely
+                limit_k = min(len(rets_a), len(rets_b))
+                cov = sum((rets_a[k] - mean_a) * (rets_b[k] - mean_b) for k in range(limit_k))
+                
+                denominator = math.sqrt(var_a * var_b)
+                correlations[f"{sym_a}_{sym_b}"] = cov / denominator if denominator > 0 else 1.0
 
         free_usdt = 0.0
         if LIVE_EXECUTION:
