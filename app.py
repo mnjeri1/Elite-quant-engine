@@ -91,6 +91,24 @@ class ClientDatabase:
                 return {"username": username, "full_name": row[0], "phone_number": row[1]}
             return None
 
+    def get_decrypted_credentials(self, username, password):
+        """Helper to safely fetch and decrypt API credentials for live trading."""
+        pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+        with self.lock:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT api_key_enc, secret_key_enc FROM clients WHERE username = ? AND password_hash = ?', (username, pwd_hash))
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                return {
+                    "binance": {
+                        "api_key": self.vault.decrypt(row[0]),
+                        "secret_key": self.vault.decrypt(row[1])
+                    }
+                }
+            return None
+
     def get_masked_profile(self, username):
         with self.lock:
             conn = self._get_connection()
@@ -119,7 +137,7 @@ class CustomerCareBot:
             return "Support Bot: Welcome! Our automated desk is fully optimized to assist your professional trading journey."
 
 
-# --- 4. CONTINUOUSLY BEATING HEARTS & SWEET WORDS ENGINE ---
+# --- 4. INSTITUTIONAL UI COMPONENT ---
 class InstitutionalUI:
     def __init__(self):
         self.sweet_notes = [
@@ -138,7 +156,6 @@ class InstitutionalUI:
         current_heart = hearts[int(time.time() / 1.5) % len(hearts)]
         current_note = self.sweet_notes[st.session_state.note_index % len(self.sweet_notes)]
 
-        # Custom styled dynamic card layout
         st.markdown(
             f"""
             <div style="padding: 18px; border-radius: 12px; background: linear-gradient(135deg, #1e1e2f 0%, #2a1b3d 100%); border: 1.5px solid #ff4b4b; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(255,75,75,0.2);">
@@ -168,7 +185,6 @@ if "logged_in" not in st.session_state:
     st.session_state.username = ""
     st.session_state.full_name = ""
 
-# Render Heartbeat Banner at the top
 ui.render_streamlit_heartbeat_banner()
 
 if auth_mode == "Register":
@@ -203,6 +219,7 @@ elif auth_mode == "Login":
                     st.session_state.logged_in = True
                     st.session_state.username = session["username"]
                     st.session_state.full_name = session["full_name"]
+                    st.session_state.temp_pwd = password_input
                     st.rerun()
                 else:
                     st.error("Invalid credentials.")
@@ -216,6 +233,8 @@ elif auth_mode == "Login":
             st.session_state.logged_in = False
             st.session_state.username = ""
             st.session_state.full_name = ""
+            if "temp_pwd" in st.session_state:
+                del st.session_state.temp_pwd
             st.rerun()
 
 elif auth_mode == "Live Trading Hub":
