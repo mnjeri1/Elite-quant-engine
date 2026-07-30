@@ -1,4 +1,4 @@
-import cctx
+import ccxt
 import asyncio
 import aiohttp
 import logging
