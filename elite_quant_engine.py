@@ -1,6 +1,5 @@
 import ccxt.async_support as ccxt
 import asyncio
-import aiohttp
 import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -38,18 +37,19 @@ class UniversalMultiBrokerGateway:
     async def initialize_exchanges(self):
         binance_creds = self.credentials.get("binance", {})
         if binance_creds.get("api_key") and binance_creds.get("secret_key"):
-            # Initialize real asynchronous Binance exchange connection
-            self.exchanges["CRYPTO"] = ccxt.binance({
-                'apiKey': binance_creds["api_key"],
-                'secret': binance_creds["secret_key"],
-                'enableRateLimit': True,
-                'options': {'defaultType': 'spot'}
-            })
-            logger.info("[CCXT] Binance live connection initialized successfully.")
+            if "CRYPTO" not in self.exchanges:
+                self.exchanges["CRYPTO"] = ccxt.binance({
+                    'apiKey': binance_creds["api_key"],
+                    'secret': binance_creds["secret_key"],
+                    'enableRateLimit': True,
+                    'options': {'defaultType': 'spot'}
+                })
+                logger.info("[CCXT] Binance live connection initialized successfully.")
 
     async def close_exchanges(self):
         if "CRYPTO" in self.exchanges:
             await self.exchanges["CRYPTO"].close()
+            self.exchanges.pop("CRYPTO", None)
 
     async def execute_order(self, order: LiveTradeOrder) -> bool:
         try:
@@ -57,9 +57,9 @@ class UniversalMultiBrokerGateway:
                 exchange = self.exchanges["CRYPTO"]
                 logger.info(f"[BINANCE LIVE] Executing real order for {order.symbol}...")
                 
-                # Real order execution dispatch via CCXT
-                # market_order = await exchange.create_order(order.symbol, 'market', order.side.lower(), order.volume)
-                await asyncio.sleep(0.05) # Simulated network transmission safety wrapper
+                # Uncomment the line below when going live with actual order dispatch:
+                # await exchange.create_order(order.symbol, 'market', order.side.lower(), order.volume)
+                await asyncio.sleep(0.05) 
                 return True
 
             elif order.asset_class in ["FOREX", "STOCKS"]:
@@ -68,7 +68,7 @@ class UniversalMultiBrokerGateway:
                 return True
 
         except Exception as e:
-            logger.error(f"[EXECUTION ERROR] Failed to place order on venue: {e}")
+            logger.error(f"[EXECUTION ERROR] Failed to place order on venue {order.symbol}: {e}")
             return False
         return False
 
@@ -85,8 +85,8 @@ class StrategyResearchEngine:
 
 
 class ZeroLagMultiMarketEngine:
-    def __init__(self, symbols: List[str], min_capital: float = 20.0, credentials: dict = None):
-        self.symbols = symbols
+    def __init__(self, symbols_config: List[dict], min_capital: float = 20.0, credentials: dict = None):
+        self.symbols_config = symbols_config
         self.min_capital = min_capital
         self.active_orders: List[LiveTradeOrder] = []
         self.gateway = UniversalMultiBrokerGateway(credentials or {})
@@ -109,32 +109,33 @@ class ZeroLagMultiMarketEngine:
             return True
         return False
 
-    async def fetch_live_market_data(self, symbol: str, asset_class: str) -> float:
-        """Fetches live market ticks via CCXT if crypto, or fallback pricing feeds."""
+    async def fetch_live_market_data(self, symbol: str, asset_class: str) -> Optional[float]:
+        """Fetches live market ticks via CCXT if crypto, with explicit error logging."""
         try:
             if asset_class == "CRYPTO" and "CRYPTO" in self.gateway.exchanges:
                 ticker = await self.gateway.exchanges["CRYPTO"].fetch_ticker(symbol)
                 return float(ticker['last'])
-        except Exception:
-            pass
-        
-        # Fallback pricing mechanism
-        import random
-        return 92000.0 + random.uniform(-10, 10)
+        except Exception as e:
+            logger.warning(f"[TICKER WARNING] Failed to fetch live data for {symbol}: {e}")
+        return None
 
     async def run_zero_lag_execution_loop(self, current_balance: float):
         await self.gateway.initialize_exchanges()
-        logger.info(f"Zero-lag multi-market execution engine active for: {self.symbols}")
+        logger.info("Zero-lag multi-market execution engine active.")
 
         try:
             while True:
                 if not self.verify_capital(current_balance):
                     break
 
-                for symbol in self.symbols:
-                    asset_type = "CRYPTO" if "USDT" in symbol else "FOREX" if "/" in symbol else "STOCKS"
-                    current_price = await self.fetch_live_market_data(symbol, asset_type)
+                for item in self.symbols_config:
+                    symbol = item["symbol"]
+                    asset_type = item["asset_class"]
                     
+                    current_price = await self.fetch_live_market_data(symbol, asset_type)
+                    if current_price is None:
+                        continue
+
                     strategy = StrategyResearchEngine.identify_optimal_strategy(volatility=0.03, trend_strength=0.75)
 
                     for order in [o for o in self.active_orders if o.symbol == symbol and o.is_active]:
