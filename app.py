@@ -1,10 +1,17 @@
-import streamlit
+import streamlit as st
 import sqlite3
 import hashlib
 import os
 import time
 import threading
 from cryptography.fernet import Fernet
+
+# --- PAGE CONFIGURATION ---
+st.set_page_config(
+    page_title="Institutional Trading Gateway",
+    page_icon="⚡",
+    layout="wide"
+)
 
 # --- 1. ENCRYPTION & SECURITY VAULT ---
 class SecurityVault:
@@ -60,7 +67,7 @@ class ClientDatabase:
             self.conn.commit()
             return True
         except sqlite3.OperationalError as e:
-            print(f"[DB ERROR] Operational error during registration: {e}")
+            st.error(f"[DB ERROR] Operational error during registration: {e}")
             return False
 
     def authenticate(self, username, password):
@@ -111,43 +118,116 @@ class InstitutionalUI:
             "Precision in trading, perfection in everything you touch. You've got this! 💘",
             "Just a reminder that you are loved, deeply appreciated, and completely unstoppable today. 🌹"
         ]
-        self._note_index = 0
 
-    def start_beating_heart_banner(self):
-        def animate():
-            hearts = [" ❤️ ", " 💖 ", " 💗 ", " 💓 ", " 💕 "]
-            i = 0
-            while True:
-                heart_pulse = hearts[i % len(hearts)]
-                current_note = self.sweet_notes[self._note_index % len(self.sweet_notes)]
-                print(f"\r[SYSTEM STATUS: ONLINE] {heart_pulse} Institutional Core Active {heart_pulse} | Note: {current_note}", end="", flush=True)
-                time.sleep(1.8)
-                i += 1
-                if i % 10 == 0:
-                    self._note_index += 1
+    def render_streamlit_heartbeat_banner(self):
+        """Renders an interactive, live-updating heartbeat banner and affirmation card in Streamlit."""
+        if "note_index" not in st.session_state:
+            st.session_state.note_index = 0
 
-        t = threading.Thread(target=animate, daemon=True)
-        t.start()
+        hearts = [" ❤️ ", " 💖 ", " 💗 ", " 💓 ", " 💕 "]
+        current_heart = hearts[int(time.time() / 2) % len(hearts)]
+        current_note = self.sweet_notes[st.session_state.note_index % len(self.sweet_notes)]
+
+        # Custom styled card for the love and motivation engine
+        st.markdown(
+            f"""
+            <div style="padding: 15px; border-radius: 10px; background-color: #1e1e2f; border: 1px solid #ff4b4b; text-align: center; margin-bottom: 20px;">
+                <h4 style="color: #ff4b4b; margin: 0;">SYSTEM STATUS: ONLINE {current_heart} Institutional Core Active {current_heart}</h4>
+                <p style="font-size: 16px; color: #ffffff; margin-top: 10px; font-style: italic;">"{current_note}"</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Button to cycle through sweet notes dynamically
+        col_space1, col_center, col_space2 = st.columns([2, 2, 2])
+        with col_center:
+            if st.button("✨ Receive Another Sweet Note"):
+                st.session_state.note_index += 1
+                st.rerun()
 
 
-if __name__ == "__main__":
-    db = ClientDatabase()
-    ui = InstitutionalUI()
-    bot = CustomerCareBot()
+# --- STREAMLIT APPLICATION INTERFACE ---
+db = ClientDatabase()
+ui = InstitutionalUI()
+
+st.sidebar.title("🔐 Institutional Gateway")
+auth_mode = st.sidebar.radio("Navigation", ["Login", "Register", "Support Bot"])
+
+# Session state initialization
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.full_name = ""
+
+# Display the Heartbeat & Sweet Words Banner at the top of the app
+ui.render_streamlit_heartbeat_banner()
+
+if auth_mode == "Register":
+    st.header("📝 Institutional Client Registration")
+    st.markdown("Register your credentials securely with AES-256 encryption at rest.")
     
-    print("\n--- INSTITUTIONAL CLIENT GATEWAY INITIALIZED ---")
-    ui.start_beating_heart_banner()
+    with st.form("registration_form"):
+        new_user = st.text_input("Username")
+        full_name = st.text_input("Full Name")
+        phone = st.text_input("Phone Number")
+        password = st.text_input("Password", type="password")
+        api_key = st.text_input("API Key (Binance/Broker)", type="password")
+        secret_key = st.text_input("Secret Key", type="password")
+        submitted = st.form_submit_button("Register Securely")
+        
+        if submitted:
+            if new_user and full_name and password and api_key and secret_key:
+                success = db.register(new_user, full_name, phone, password, api_key, secret_key)
+                if success:
+                    st.success("Registration successful! You can now switch to the Login tab.")
+            else:
+                st.warning("Please fill out all required fields before submitting.")
+
+elif auth_mode == "Login":
+    st.header("🔑 Client Portal Login")
     
-    test_user = "trader_pro"
-    if db.register(test_user, "Monicah Kabui", "+254712345678", "SecurePass123!", "binance_api_key_sample", "binance_secret_key_sample"):
-        print("\n[INFO] User registered securely with persistent encrypted database memory.")
+    if not st.session_state.logged_in:
+        with st.form("login_form"):
+            username_input = st.text_input("Username")
+            password_input = st.text_input("Password", type="password")
+            login_btn = st.form_submit_button("Authenticate")
+            
+            if login_btn:
+                session = db.authenticate(username_input, password_input)
+                if session:
+                    st.session_state.logged_in = True
+                    st.session_state.username = session["username"]
+                    st.session_state.full_name = session["full_name"]
+                    st.success(f"Welcome back, {session['full_name']}!")
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password.")
+    else:
+        st.success(f"Active Session: Connected as **{st.session_state.full_name}** (`{st.session_state.username}`)")
+        
+        masked = db.get_masked_profile(st.session_state.username)
+        if masked:
+            st.info(f"🔒 Privacy Profile | Masked Name: **{masked['masked_name']}** | Masked Phone: `{masked['masked_phone']}`")
+        
+        st.divider()
+        st.subheader("📊 Multi-Market Quantitative Overview")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Spot & Futures", "Active", "Zero-Lag Loop")
+        col2.metric("Forex Gateway", "Active", "Direct FX Feed")
+        col3.metric("Equity Stream", "Active", "Low Latency")
+
+        if st.button("Log Out"):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.session_state.full_name = ""
+            st.rerun()
+
+elif auth_mode == "Support Bot":
+    st.header("💬 Institutional Support Desk")
+    st.markdown("Ask automated questions regarding capital requirements, rate limits, and execution safety.")
     
-    session = db.authenticate(test_user, "SecurePass123!")
-    if session:
-        print(f"\n[INFO] Welcome back, {session['username']}! Credentials securely remembered.")
-        print("[PRIVACY CHECK] Masked Profile:", db.get_masked_profile(test_user))
-    
-    print("\n--- TESTING CUSTOMER CARE BOT ---")
-    print(bot.handle_query("How does the Binance connection avoid getting banned?"))
-    
-    time.sleep(6)
+    user_query = st.text_input("Type your support inquiry:")
+    if user_query:
+        bot_response = CustomerCareBot.handle_query(user_query)
+        st.markdown(f"> **{bot_response}**")
