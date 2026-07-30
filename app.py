@@ -53,12 +53,13 @@ class ClientDatabase:
         sec_enc = self.vault.encrypt(secret_key)
         try:
             self.cursor.execute('''
-                INSERT INTO clients (username, full_name, phone_number, password_hash, api_key_enc, secret_key_enc)
+                INSERT OR REPLACE INTO clients (username, full_name, phone_number, password_hash, api_key_enc, secret_key_enc)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', (username, full_name, phone_number, pwd_hash, api_enc, sec_enc))
             self.conn.commit()
             return True
-        except sqlite3.IntegrityError:
+        except sqlite3.OperationalError as e:
+            print(f"[DB ERROR] Operational error during registration: {e}")
             return False
 
     def authenticate(self, username, password):
