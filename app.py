@@ -3,6 +3,7 @@ import sqlite3
 import hashlib
 import os
 import threading
+from contextlib import contextmanager
 from cryptography.fernet import Fernet
 
 # --- PAGE CONFIGURATION ---
@@ -15,14 +16,30 @@ st.set_page_config(
 # --- 1. ENCRYPTION & SECURITY VAULT ---
 class SecurityVault:
     def __init__(self, key_file="institutional_vault.key"):
-        if not os.path.exists(key_file):
+        # If the environment provides an override key, use it for persistent cloud hosting (e.g. Render/AWS)
+        env_key = os.getenv("VAULT_SECRET_KEY", None)
+        if env_key:
+            self.key = env_key.encode() if isinstance(env_key, str) else env_key
+        elif not os.path.exists(key_file):
             self.key = Fernet.generate_key()
-            with open(key_file, "wb") as f:
-                f.write(self.key)
+            try:
+                with open(key_file, "wb") as f:
+                    f.write(self.key)
+            except Exception:
+                pass  # Fallback gracefully if filesystem is read-only
         else:
-            with open(key_file, "rb") as f:
-                self.key = f.read()
-        self.cipher = Fernet(self.key)
+            try:
+                with open(key_file, "rb") as f:
+                    self.key = f.read()
+            except Exception:
+                self.key = Fernet.generate_key()
+                
+        try:
+            self.cipher = Fernet(self.key)
+        except Exception:
+            # Fallback for invalid/corrupted keys
+            self.key = Fernet.generate_key()
+            self.cipher = Fernet(self.key)
 
     def encrypt(self, plain_text: str) -> bytes:
         return self.cipher.encrypt(plain_text.encode()) if plain_text else b""
@@ -36,37 +53,76 @@ class SecurityVault:
             return ""
 
 
-# --- 2. THREAD-SAFE PERSISTENT CUSTOMER DATABASE ---
+# --- 2. THREAD-SAFE PERSISTENT CUSTOMER DATABASE WITH CLOUD ADAPTER ---
 class ClientDatabase:
     def __init__(self, db_name="institutional_clients.db"):
         self.vault = SecurityVault()
         self.db_name = db_name
         self.lock = threading.Lock()
+        self.database_url = os.getenv("DATABASE_URL", None)
         self._initialize_db()
 
+    @contextmanager
     def _get_connection(self):
-        # Local connection per operation to maintain thread safety without sharing raw connections
-        return sqlite3.connect(self.db_name)
+        """
+        Thread-safe connection manager supporting local SQLite (with WAL concurrency mode) 
+        or external production databases (PostgreSQL/MySQL) via DATABASE_URL.
+        """
+        if self.database_url:
+            import psycopg2
+            conn = psycopg2.connect(self.database_url)
+            try:
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+        else:
+            conn = sqlite3.connect(self.db_name, timeout=30.0, check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL;")
+            try:
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
 
     def _initialize_db(self):
         with self.lock:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS clients (
-                    username TEXT PRIMARY KEY,
-                    full_name TEXT,
-                    phone_number TEXT,
-                    password_hash TEXT,
-                    binance_api_enc BLOB,
-                    binance_secret_enc BLOB,
-                    stock_api_enc BLOB,
-                    stock_secret_enc BLOB,
-                    forex_api_enc BLOB
-                )
-            ''')
-            conn.commit()
-            conn.close()
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                if self.database_url:
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS clients (
+                            username VARCHAR(255) PRIMARY KEY,
+                            full_name TEXT,
+                            phone_number TEXT,
+                            password_hash TEXT,
+                            binance_api_enc BYTEA,
+                            binance_secret_enc BYTEA,
+                            stock_api_enc BYTEA,
+                            stock_secret_enc BYTEA,
+                            forex_api_enc BYTEA
+                        )
+                    ''')
+                else:
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS clients (
+                            username TEXT PRIMARY KEY,
+                            full_name TEXT,
+                            phone_number TEXT,
+                            password_hash TEXT,
+                            binance_api_enc BLOB,
+                            binance_secret_enc BLOB,
+                            stock_api_enc BLOB,
+                            stock_secret_enc BLOB,
+                            forex_api_enc BLOB
+                        )
+                    ''')
 
     def register(self, username, full_name, phone_number, password, b_api, b_sec, s_api, s_sec, f_api):
         pwd_hash = hashlib.sha256(password.encode()).hexdigest()
@@ -78,17 +134,33 @@ class ClientDatabase:
         
         with self.lock:
             try:
-                conn = self._get_connection()
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT OR REPLACE INTO clients (
-                        username, full_name, phone_number, password_hash, 
-                        binance_api_enc, binance_secret_enc, stock_api_enc, stock_secret_enc, forex_api_enc
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (username, full_name, phone_number, pwd_hash, b_api_enc, b_sec_enc, s_api_enc, s_sec_enc, f_api_enc))
-                conn.commit()
-                conn.close()
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    if self.database_url:
+                        cursor.execute('''
+                            INSERT INTO clients (
+                                username, full_name, phone_number, password_hash, 
+                                binance_api_enc, binance_secret_enc, stock_api_enc, stock_secret_enc, forex_api_enc
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (username) DO UPDATE SET 
+                                full_name = EXCLUDED.full_name,
+                                phone_number = EXCLUDED.phone_number,
+                                password_hash = EXCLUDED.password_hash,
+                                binance_api_enc = EXCLUDED.binance_api_enc,
+                                binance_secret_enc = EXCLUDED.binance_secret_enc,
+                                stock_api_enc = EXCLUDED.stock_api_enc,
+                                stock_secret_enc = EXCLUDED.stock_secret_enc,
+                                forex_api_enc = EXCLUDED.forex_api_enc
+                        ''', (username, full_name, phone_number, pwd_hash, b_api_enc, b_sec_enc, s_api_enc, s_sec_enc, f_api_enc))
+                    else:
+                        cursor.execute('''
+                            INSERT OR REPLACE INTO clients (
+                                username, full_name, phone_number, password_hash, 
+                                binance_api_enc, binance_secret_enc, stock_api_enc, stock_secret_enc, forex_api_enc
+                            )
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (username, full_name, phone_number, pwd_hash, b_api_enc, b_sec_enc, s_api_enc, s_sec_enc, f_api_enc))
                 return True
             except Exception as e:
                 st.error(f"[DB ERROR] {e}")
@@ -97,56 +169,28 @@ class ClientDatabase:
     def authenticate(self, username, password):
         pwd_hash = hashlib.sha256(password.encode()).hexdigest()
         with self.lock:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute('SELECT full_name, phone_number FROM clients WHERE username = ? AND password_hash = ?', (username, pwd_hash))
-            row = cursor.fetchone()
-            conn.close()
-            if row:
-                return {"username": username, "full_name": row[0], "phone_number": row[1]}
-            return None
-
-    def get_decrypted_credentials_secure(self, username, password):
-        """Safely verify password and return decrypted credentials without caching plaintext keys."""
-        pwd_hash = hashlib.sha256(password.encode()).hexdigest()
-        with self.lock:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT binance_api_enc, binance_secret_enc, stock_api_enc, stock_secret_enc, forex_api_enc 
-                FROM clients WHERE username = ? AND password_hash = ?
-            ''', (username, pwd_hash))
-            row = cursor.fetchone()
-            conn.close()
-            if row:
-                return {
-                    "binance": {
-                        "api_key": self.vault.decrypt(row[0]),
-                        "secret_key": self.vault.decrypt(row[1])
-                    },
-                    "stocks": {
-                        "api_key": self.vault.decrypt(row[2]),
-                        "secret_key": self.vault.decrypt(row[3])
-                    },
-                    "forex": {
-                        "access_token": self.vault.decrypt(row[4])
-                    }
-                }
-            return None
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                placeholder = "%s" if self.database_url else "?"
+                cursor.execute(f'SELECT full_name, phone_number FROM clients WHERE username = {placeholder} AND password_hash = {placeholder}', (username, pwd_hash))
+                row = cursor.fetchone()
+                if row:
+                    return {"username": username, "full_name": row[0], "phone_number": row[1]}
+                return None
 
     def get_masked_profile(self, username):
         with self.lock:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute('SELECT full_name, phone_number FROM clients WHERE username = ?', (username,))
-            row = cursor.fetchone()
-            conn.close()
-            if not row:
-                return None
-            name, phone = row
-            masked_name = " ".join([p[0] + "***" for p in name.split()])
-            masked_phone = phone[:5] + "***" + phone[-4:] if len(phone) > 8 else "***"
-            return {"username": username, "masked_name": masked_name, "masked_phone": masked_phone}
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                placeholder = "%s" if self.database_url else "?"
+                cursor.execute(f'SELECT full_name, phone_number FROM clients WHERE username = {placeholder}', (username,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                name, phone = row
+                masked_name = " ".join([p[0] + "***" for p in name.split()]) if name else "U***"
+                masked_phone = phone[:5] + "***" + phone[-4:] if phone and len(phone) > 8 else "***"
+                return {"username": username, "masked_name": masked_name, "masked_phone": masked_phone}
 
 
 # --- 3. CUSTOMER CARE SUPPORT BOT ---
@@ -179,7 +223,6 @@ class InstitutionalUI:
 
         current_note = self.romantic_notes[st.session_state.note_index % len(self.romantic_notes)]
 
-        # Continuous high-fidelity romantic pulsing heartbeat animation styling
         st.markdown(
             """
             <style>
@@ -283,7 +326,6 @@ elif auth_mode == "Login":
                     st.session_state.logged_in = True
                     st.session_state.username = session["username"]
                     st.session_state.full_name = session["full_name"]
-                    # Store temporary handle for runtime validation securely without raw password retention inside session state
                     st.session_state.secure_auth_token = hashlib.sha256(password_input.encode()).hexdigest()
                     st.rerun()
                 else:
@@ -295,16 +337,15 @@ elif auth_mode == "Login":
             st.info(f"🔒 Privacy Profile | Name: **{masked['masked_name']}** | Phone: `{masked['masked_phone']}`")
         
         if st.button("Log Out"):
-            st.session_state.logged_in = False
-            st.session_state.username = ""
-            st.session_state.full_name = ""
-            if "secure_auth_token" in st.session_state:
-                del st.session_state.secure_auth_token
+            # Purge session state variables and clear widget cache completely to prevent state caching bugs
+            keys_to_clear = [k for k in st.session_state.keys()]
+            for key in keys_to_clear:
+                del st.session_state[key]
             st.rerun()
 
 elif auth_mode == "Live Trading Hub":
     st.header("📈 Live Multi-Market Execution Hub")
-    if not st.session_state.logged_in:
+    if not st.session_state.get("logged_in", False):
         st.warning("Please log in through the portal to access live trading metrics.")
     else:
         st.success("API Credentials Authenticated Securely from Encrypted Vault.")
