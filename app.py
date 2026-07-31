@@ -16,7 +16,6 @@ st.set_page_config(
 # --- 1. ENCRYPTION & SECURITY VAULT ---
 class SecurityVault:
     def __init__(self, key_file="institutional_vault.key"):
-        # If the environment provides an override key, use it for persistent cloud hosting (e.g. Render/AWS)
         env_key = os.getenv("VAULT_SECRET_KEY", None)
         if env_key:
             self.key = env_key.encode() if isinstance(env_key, str) else env_key
@@ -26,7 +25,7 @@ class SecurityVault:
                 with open(key_file, "wb") as f:
                     f.write(self.key)
             except Exception:
-                pass  # Fallback gracefully if filesystem is read-only
+                pass  
         else:
             try:
                 with open(key_file, "rb") as f:
@@ -37,7 +36,6 @@ class SecurityVault:
         try:
             self.cipher = Fernet(self.key)
         except Exception:
-            # Fallback for invalid/corrupted keys
             self.key = Fernet.generate_key()
             self.cipher = Fernet(self.key)
 
@@ -53,7 +51,7 @@ class SecurityVault:
             return ""
 
 
-# --- 2. THREAD-SAFE PERSISTENT CUSTOMER DATABASE WITH CLOUD ADAPTER ---
+# --- 2. THREAD-SAFE CLIENT DATABASE ---
 class ClientDatabase:
     def __init__(self, db_name="institutional_clients.db"):
         self.vault = SecurityVault()
@@ -64,10 +62,6 @@ class ClientDatabase:
 
     @contextmanager
     def _get_connection(self):
-        """
-        Thread-safe connection manager supporting local SQLite (with WAL concurrency mode) 
-        or external production databases (PostgreSQL/MySQL) via DATABASE_URL.
-        """
         if self.database_url:
             import psycopg2
             conn = psycopg2.connect(self.database_url)
@@ -106,7 +100,7 @@ class ClientDatabase:
                             binance_secret_enc BYTEA,
                             stock_api_enc BYTEA,
                             stock_secret_enc BYTEA,
-                            forex_api_enc BYTEA
+                            ibkr_host_enc BYTEA
                         )
                     ''')
                 else:
@@ -120,17 +114,17 @@ class ClientDatabase:
                             binance_secret_enc BLOB,
                             stock_api_enc BLOB,
                             stock_secret_enc BLOB,
-                            forex_api_enc BLOB
+                            ibkr_host_enc BLOB
                         )
                     ''')
 
-    def register(self, username, full_name, phone_number, password, b_api, b_sec, s_api, s_sec, f_api):
+    def register(self, username, full_name, phone_number, password, b_api, b_sec, s_api, s_sec, ibkr_host):
         pwd_hash = hashlib.sha256(password.encode()).hexdigest()
         b_api_enc = self.vault.encrypt(b_api)
         b_sec_enc = self.vault.encrypt(b_sec)
         s_api_enc = self.vault.encrypt(s_api)
         s_sec_enc = self.vault.encrypt(s_sec)
-        f_api_enc = self.vault.encrypt(f_api)
+        ibkr_host_enc = self.vault.encrypt(ibkr_host)
         
         with self.lock:
             try:
@@ -140,7 +134,7 @@ class ClientDatabase:
                         cursor.execute('''
                             INSERT INTO clients (
                                 username, full_name, phone_number, password_hash, 
-                                binance_api_enc, binance_secret_enc, stock_api_enc, stock_secret_enc, forex_api_enc
+                                binance_api_enc, binance_secret_enc, stock_api_enc, stock_secret_enc, ibkr_host_enc
                             )
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (username) DO UPDATE SET 
@@ -151,16 +145,16 @@ class ClientDatabase:
                                 binance_secret_enc = EXCLUDED.binance_secret_enc,
                                 stock_api_enc = EXCLUDED.stock_api_enc,
                                 stock_secret_enc = EXCLUDED.stock_secret_enc,
-                                forex_api_enc = EXCLUDED.forex_api_enc
-                        ''', (username, full_name, phone_number, pwd_hash, b_api_enc, b_sec_enc, s_api_enc, s_sec_enc, f_api_enc))
+                                ibkr_host_enc = EXCLUDED.ibkr_host_enc
+                        ''', (username, full_name, phone_number, pwd_hash, b_api_enc, b_sec_enc, s_api_enc, s_sec_enc, ibkr_host_enc))
                     else:
                         cursor.execute('''
                             INSERT OR REPLACE INTO clients (
                                 username, full_name, phone_number, password_hash, 
-                                binance_api_enc, binance_secret_enc, stock_api_enc, stock_secret_enc, forex_api_enc
+                                binance_api_enc, binance_secret_enc, stock_api_enc, stock_secret_enc, ibkr_host_enc
                             )
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (username, full_name, phone_number, pwd_hash, b_api_enc, b_sec_enc, s_api_enc, s_sec_enc, f_api_enc))
+                        ''', (username, full_name, phone_number, pwd_hash, b_api_enc, b_sec_enc, s_api_enc, s_sec_enc, ibkr_host_enc))
                 return True
             except Exception as e:
                 st.error(f"[DB ERROR] {e}")
@@ -200,8 +194,8 @@ class CustomerCareBot:
         q = query.lower()
         if "minimum" in q or "capital" in q:
             return "Support Bot: The minimum capital limit is strictly $20 across all supported markets."
-        elif "binance" in q or "api" in q or "broker" in q:
-            return "Support Bot: You can securely link your Binance, Stock (Alpaca), and Forex (OANDA) credentials via the secure portal login."
+        elif "binance" in q or "api" in q or "broker" in q or "ibkr" in q:
+            return "Support Bot: You can securely link your Binance, Stock (Alpaca), and Forex (Interactive Brokers) credentials via the portal login."
         else:
             return "Support Bot: Welcome! Our automated desk is fully optimized to assist your professional multi-asset trading journey."
 
@@ -273,7 +267,7 @@ class InstitutionalUI:
                 st.rerun()
 
 
-# --- STREAMLIT APPLICATION INTERFACE ---
+# --- APP INITIALIZATION ---
 db = ClientDatabase()
 ui = InstitutionalUI()
 
@@ -301,13 +295,13 @@ if auth_mode == "Register":
         b_sec = st.text_input("Binance Secret Key (Crypto)", type="password")
         s_api = st.text_input("Alpaca API Key (Stocks)", type="password")
         s_sec = st.text_input("Alpaca Secret Key (Stocks)", type="password")
-        f_api = st.text_input("OANDA Access Token (Forex)", type="password")
+        ibkr_host = st.text_input("Interactive Brokers Host:Port (e.g., 127.0.0.1:7497)")
         
         submitted = st.form_submit_button("Register Securely")
         
         if submitted:
             if new_user and full_name and password:
-                if db.register(new_user, full_name, phone, password, b_api, b_sec, s_api, s_sec, f_api):
+                if db.register(new_user, full_name, phone, password, b_api, b_sec, s_api, s_sec, ibkr_host):
                     st.success("Registration successful! Switch to the Login tab.")
             else:
                 st.warning("Please fill out the required user credential fields.")
@@ -326,7 +320,6 @@ elif auth_mode == "Login":
                     st.session_state.logged_in = True
                     st.session_state.username = session["username"]
                     st.session_state.full_name = session["full_name"]
-                    st.session_state.secure_auth_token = hashlib.sha256(password_input.encode()).hexdigest()
                     st.rerun()
                 else:
                     st.error("Invalid credentials.")
@@ -337,9 +330,7 @@ elif auth_mode == "Login":
             st.info(f"🔒 Privacy Profile | Name: **{masked['masked_name']}** | Phone: `{masked['masked_phone']}`")
         
         if st.button("Log Out"):
-            # Purge session state variables and clear widget cache completely to prevent state caching bugs
-            keys_to_clear = [k for k in st.session_state.keys()]
-            for key in keys_to_clear:
+            for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
 
@@ -349,11 +340,10 @@ elif auth_mode == "Live Trading Hub":
         st.warning("Please log in through the portal to access live trading metrics.")
     else:
         st.success("API Credentials Authenticated Securely from Encrypted Vault.")
-        
         col1, col2, col3 = st.columns(3)
         col1.metric("Binance Status", "Active Core", "Crypto Link Ready")
         col2.metric("Stocks Status", "Active Core", "Alpaca Link Ready")
-        col3.metric("Forex Status", "Active Core", "OANDA Link Ready")
+        col3.metric("Forex Status", "Active Core", "IBKR Link Ready")
 
 elif auth_mode == "Support Bot":
     st.header("💬 Institutional Support Desk")
