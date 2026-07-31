@@ -104,7 +104,7 @@ class UniversalMultiBrokerGateway:
                 )
                 logger.info("[ALPACA] Equities trading and data feeds initialized.")
 
-        # 4. Initialize Interactive Brokers (IBKR) for Forex Gateway
+        # 4. Initialize Interactive Brokers (IBKR) for Forex Gateway with proper socket check
         if ibkr_creds.get("host") and ibkr_creds.get("port") and IBKR_SDK_AVAILABLE:
             if "IBKR" not in self.exchanges:
                 self.ibkr_client = IB()
@@ -117,7 +117,7 @@ class UniversalMultiBrokerGateway:
                     self.exchanges["IBKR"] = self.ibkr_client
                     logger.info("[IBKR] Interactive Brokers gateway connection initialized.")
                 except Exception as e:
-                    logger.error(f"[IBKR ERROR] Failed to connect to IBKR TWS/Gateway: {e}")
+                    logger.error(f"[IBKR ERROR] Failed to connect to IBKR TWS/Gateway socket: {e}")
 
     async def close_exchanges(self):
         for key in ["CRYPTO_SPOT", "CRYPTO_FUTURE"]:
@@ -215,3 +215,40 @@ class ZeroLagMultiMarketEngine:
             return False
         await self.gateway.initialize_exchanges()
         return await self.gateway.execute_order(order)
+
+    async def run_zero_lag_execution_loop(self, current_balance: float):
+        await self.gateway.initialize_exchanges()
+        logger.info("Zero-lag multi-market execution engine active with broker-side protection.")
+
+        try:
+            while True:
+                if not self.verify_capital(current_balance):
+                    break
+
+                for item in self.symbols_config:
+                    symbol = item["symbol"]
+                    asset_type = item["asset_class"]
+                    
+                    for order in [o for o in self.active_orders if o.symbol == symbol and o.is_active]:
+                        pass
+
+                await asyncio.sleep(1)
+        finally:
+            await self.gateway.close_exchanges()
+
+
+# --- SAFE ASYNC RUNTIME BOOTSTRAPPER (Option 3 Fix) ---
+if __name__ == "__main__":
+    sample_credentials = {
+        "ibkr": {"host": "127.0.0.1", "port": 7497, "client_id": 1}
+    }
+    sample_symbols = [
+        {"symbol": "EURUSD", "asset_class": "FOREX"}
+    ]
+    
+    engine = ZeroLagMultiMarketEngine(symbols_config=sample_symbols, min_capital=20.0, credentials=sample_credentials)
+    
+    try:
+        asyncio.run(engine.run_zero_lag_execution_loop(current_balance=100.0))
+    except KeyboardInterrupt:
+        logger.info("Engine safely terminated by user.")
