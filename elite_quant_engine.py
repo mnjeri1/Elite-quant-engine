@@ -54,7 +54,8 @@ class LiveTradeOrder:
 class UniversalMultiBrokerGateway:
     """
     Seamlessly routes live trades and native bracket risk management across 
-    Binance Spot/Futures, Alpaca Equities, and Interactive Brokers (IBKR) for Forex via persistent session pooling.
+    Binance Spot/Futures (with strict rate-limit protection), Alpaca Equities, 
+    and Interactive Brokers (IBKR) for Forex via persistent session pooling.
     Configured strictly for LIVE production environments (paper=False).
     """
     def __init__(self, credentials: dict):
@@ -72,26 +73,26 @@ class UniversalMultiBrokerGateway:
         binance_creds = self.credentials.get("binance", {})
         ibkr_creds = self.credentials.get("ibkr", {})
 
-        # 1. Initialize Crypto Spot (Binance Live)
+        # 1. Initialize Crypto Spot (Binance Live with Built-in CCXT Rate Limiter Shield)
         if binance_creds.get("api_key") and binance_creds.get("secret_key"):
             if "CRYPTO_SPOT" not in self.exchanges:
                 self.exchanges["CRYPTO_SPOT"] = ccxt.binance({
                     'apiKey': binance_creds["api_key"],
                     'secret': binance_creds["secret_key"],
-                    'enableRateLimit': True,
+                    'enableRateLimit': True,  # Critical token bucket rate-limiter to prevent 429/403 IP bans
                     'options': {'defaultType': 'spot'}
                 })
-                logger.info("[CCXT] Binance Spot LIVE connection initialized.")
+                logger.info("[CCXT] Binance Spot LIVE connection initialized with rate-limiting active.")
 
-            # 2. Initialize Crypto Futures (Binance USD-M Live)
+            # 2. Initialize Crypto Futures (Binance USD-M Live with Rate Limiter Shield)
             if "CRYPTO_FUTURE" not in self.exchanges:
                 self.exchanges["CRYPTO_FUTURE"] = ccxt.binance({
                     'apiKey': binance_creds["api_key"],
                     'secret': binance_creds["secret_key"],
-                    'enableRateLimit': True,
+                    'enableRateLimit': True,  # Critical token bucket rate-limiter
                     'options': {'defaultType': 'future'}
                 })
-                logger.info("[CCXT] Binance Futures LIVE connection initialized.")
+                logger.info("[CCXT] Binance Futures LIVE connection initialized with rate-limiting active.")
 
         # 3. Initialize Stocks (Alpaca Live Trading & Historical Data Clients)
         if stocks_creds.get("api_key") and stocks_creds.get("secret_key") and ALPACA_SDK_AVAILABLE:
@@ -144,19 +145,30 @@ class UniversalMultiBrokerGateway:
             if order.asset_class == "CRYPTO_FUTURE" and "CRYPTO_FUTURE" in self.exchanges:
                 exchange = self.exchanges["CRYPTO_FUTURE"]
                 params = {'stopLossPrice': order.stop_loss, 'takeProfitPrice': order.take_profit}
-                await exchange.create_order(order.symbol, 'market', order.side.lower(), order.volume, params=params)
-                return True
+                
+                try:
+                    await exchange.create_order(order.symbol, 'market', order.side.lower(), order.volume, params=params)
+                    return True
+                except ccxt.RateLimitExceeded as rle:
+                    logger.warning(f"[RATE LIMIT WARNING] Binance Futures rate limit hit. Backing off safely: {rle}")
+                    await asyncio.sleep(3.0)
+                    return False
 
             # --- CRYPTO SPOT ---
             elif order.asset_class == "CRYPTO_SPOT" and "CRYPTO_SPOT" in self.exchanges:
                 exchange = self.exchanges["CRYPTO_SPOT"]
-                await exchange.create_order(order.symbol, 'market', order.side.lower(), order.volume)
-                inverted_side = 'sell' if order.side.upper() == 'BUY' else 'buy'
-                await exchange.create_order(order.symbol, 'STOP_MARKET', inverted_side, order.volume, None, {'stopPrice': order.stop_loss})
-                await exchange.create_order(order.symbol, 'TAKE_PROFIT_MARKET', inverted_side, order.volume, None, {'stopPrice': order.take_profit})
-                return True
+                try:
+                    await exchange.create_order(order.symbol, 'market', order.side.lower(), order.volume)
+                    inverted_side = 'sell' if order.side.upper() == 'BUY' else 'buy'
+                    await exchange.create_order(order.symbol, 'STOP_MARKET', inverted_side, order.volume, None, {'stopPrice': order.stop_loss})
+                    await exchange.create_order(order.symbol, 'TAKE_PROFIT_MARKET', inverted_side, order.volume, None, {'stopPrice': order.take_profit})
+                    return True
+                except ccxt.RateLimitExceeded as rle:
+                    logger.warning(f"[RATE LIMIT WARNING] Binance Spot rate limit hit. Backing off safely: {rle}")
+                    await asyncio.sleep(3.0)
+                    return False
 
-            # --- STOCKS (Alpaca Live) ---
+            # --- STOCKS (Alpaca Live - Strict Regular Hours & Bracket Orders) ---
             elif order.asset_class == "STOCKS" and "STOCKS" in self.exchanges:
                 client = self.exchanges["STOCKS"]
                 side_enum = OrderSide.BUY if order.side.upper() == "BUY" else OrderSide.SELL
@@ -164,7 +176,7 @@ class UniversalMultiBrokerGateway:
                     symbol=order.symbol,
                     qty=order.volume,
                     side=side_enum,
-                    time_in_force=TimeInForce.DAY,
+                    time_in_force=TimeInForce.DAY,  # Strictly regular session execution
                     order_class=OrderClass.BRACKET,
                     take_profit=TakeProfitRequest(limit_price=order.take_profit),
                     stop_loss=StopLossRequest(stop_price=order.stop_loss)
@@ -207,6 +219,10 @@ class UniversalMultiBrokerGateway:
 
 
 class ZeroLagMultiMarketEngine:
+    """
+    Optimized asynchronous zero-lag execution engine designed for high-speed 
+    multi-asset execution while preventing API saturation and rate-limit penalties.
+    """
     def __init__(self, symbols_config: List[dict], min_capital: float = 20.0, credentials: dict = None):
         self.symbols_config = symbols_config
         self.min_capital = min_capital
@@ -218,7 +234,7 @@ class ZeroLagMultiMarketEngine:
 
     def is_market_open(self, asset_class: str) -> bool:
         if asset_class in ["CRYPTO_SPOT", "CRYPTO_FUTURE"]:
-            return True
+            return True  # Crypto runs continuously 24/7
 
         ny_tz = pytz.timezone("America/New_York")
         now_ny = datetime.now(ny_tz)
@@ -228,6 +244,7 @@ class ZeroLagMultiMarketEngine:
         if asset_class == "STOCKS":
             if current_weekday >= 5:
                 return False
+            # Strictly regular market hours (9:30 AM - 4:00 PM ET) to ensure safe bracket order support and peak liquidity
             return time(9, 30) <= current_time <= time(16, 0)
 
         elif asset_class == "FOREX":
@@ -282,7 +299,8 @@ class ZeroLagMultiMarketEngine:
                 if tasks:
                     await asyncio.gather(*tasks, return_exceptions=True)
 
-                await asyncio.sleep(0.1)
+                # Optimized polling sleep interval to eliminate CPU lag and respect API weight limits
+                await asyncio.sleep(0.5)
         finally:
             await self.gateway.close_exchanges()
 
