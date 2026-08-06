@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 import random
 
-# --- OPTIONAL BROKER SDK IMPORTS ---
+# --- OPTIONAL BROKER SDK IMPORTS (SAFE ZONE) ---
 try:
     from alpaca.trading.client import TradingClient
     from alpaca.trading.requests import (
@@ -28,11 +28,8 @@ try:
 except ImportError:
     ALPACA_SDK_AVAILABLE = False
 
-try:
-    from ib_insync import IB, Stock, Forex, MarketOrder, LimitOrder, StopOrder
-    IBKR_SDK_AVAILABLE = True
-except ImportError:
-    IBKR_SDK_AVAILABLE = False
+# IBKR and eventkit are lazy-loaded inside execution calls to prevent Python 3.14 import-time loop crashes
+IBKR_SDK_AVAILABLE = True 
 
 try:
     import ccxt.async_support as ccxt
@@ -332,10 +329,12 @@ class UniversalMultiBrokerGateway:
                     secret_key=stocks_creds["secret_key"]
                 )
 
-        if IBKR_SDK_AVAILABLE and ibkr_creds.get("host") and ibkr_creds.get("port"):
+        # Lazy load IBKR safely inside the async execution block
+        if ibkr_creds.get("host") and ibkr_creds.get("port"):
             if "IBKR" not in self.exchanges:
-                self.ibkr_client = IB()
                 try:
+                    from ib_insync import IB, Forex
+                    self.ibkr_client = IB()
                     await self.ibkr_client.connectAsync(
                         host=ibkr_creds.get("host", "127.0.0.1"),
                         port=int(ibkr_creds.get("port", 7496)),
@@ -402,8 +401,9 @@ class UniversalMultiBrokerGateway:
                 return True
 
             elif order.asset_class == "FOREX" and "IBKR" in self.exchanges:
-                if not IBKR_SDK_AVAILABLE or not self.ibkr_client or not self.ibkr_client.isConnected():
+                if not self.ibkr_client or not self.ibkr_client.isConnected():
                     return False
+                from ib_insync import Forex, MarketOrder, LimitOrder, StopOrder
                 contract = Forex(order.symbol)
                 await self.ibkr_client.qualifyContractsAsync(contract)
                 action = "BUY" if order.side.upper() == "BUY" else "SELL"
@@ -553,7 +553,6 @@ class InstitutionalUI:
         col1, col2, col3 = st.columns([2, 2, 2])
         with col2:
             if st.button("✨ Read Another Note From My Heart", use_container_width=True):
-                # Picks a random new index ensuring it rotates to a different note
                 next_idx = random.randint(0, len(self.romantic_notes) - 1)
                 if next_idx == st.session_state.note_index:
                     next_idx = (next_idx + 1) % len(self.romantic_notes)
