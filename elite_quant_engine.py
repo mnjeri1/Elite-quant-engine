@@ -3,6 +3,8 @@ import aiohttp
 import asyncio
 import logging
 import math
+from datetime import datetime, time
+import pytz
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -53,6 +55,7 @@ class UniversalMultiBrokerGateway:
     """
     Seamlessly routes live trades and native bracket risk management across 
     Binance Spot/Futures, Alpaca Equities, and Interactive Brokers (IBKR) for Forex via persistent session pooling.
+    Configured strictly for LIVE production environments (paper=False).
     """
     def __init__(self, credentials: dict):
         self.credentials = credentials
@@ -69,7 +72,7 @@ class UniversalMultiBrokerGateway:
         binance_creds = self.credentials.get("binance", {})
         ibkr_creds = self.credentials.get("ibkr", {})
 
-        # 1. Initialize Crypto Spot (Binance)
+        # 1. Initialize Crypto Spot (Binance Live)
         if binance_creds.get("api_key") and binance_creds.get("secret_key"):
             if "CRYPTO_SPOT" not in self.exchanges:
                 self.exchanges["CRYPTO_SPOT"] = ccxt.binance({
@@ -78,9 +81,9 @@ class UniversalMultiBrokerGateway:
                     'enableRateLimit': True,
                     'options': {'defaultType': 'spot'}
                 })
-                logger.info("[CCXT] Binance Spot live connection initialized.")
+                logger.info("[CCXT] Binance Spot LIVE connection initialized.")
 
-            # 2. Initialize Crypto Futures (Binance USD-M)
+            # 2. Initialize Crypto Futures (Binance USD-M Live)
             if "CRYPTO_FUTURE" not in self.exchanges:
                 self.exchanges["CRYPTO_FUTURE"] = ccxt.binance({
                     'apiKey': binance_creds["api_key"],
@@ -88,36 +91,36 @@ class UniversalMultiBrokerGateway:
                     'enableRateLimit': True,
                     'options': {'defaultType': 'future'}
                 })
-                logger.info("[CCXT] Binance Futures live connection initialized.")
+                logger.info("[CCXT] Binance Futures LIVE connection initialized.")
 
-        # 3. Initialize Stocks (Alpaca Trading & Historical Data Clients)
+        # 3. Initialize Stocks (Alpaca Live Trading & Historical Data Clients)
         if stocks_creds.get("api_key") and stocks_creds.get("secret_key") and ALPACA_SDK_AVAILABLE:
             if "STOCKS" not in self.exchanges:
                 self.exchanges["STOCKS"] = TradingClient(
                     stocks_creds["api_key"],
                     secret_key=stocks_creds["secret_key"],
-                    paper=stocks_creds.get("paper", True) 
+                    paper=False  # STRICTLY LIVE TRADING ENDPOINT
                 )
                 self.stock_data_client = StockHistoricalDataClient(
                     api_key=stocks_creds["api_key"],
                     secret_key=stocks_creds["secret_key"]
                 )
-                logger.info("[ALPACA] Equities trading and data feeds initialized.")
+                logger.info("[ALPACA] Equities LIVE trading and data feeds initialized.")
 
-        # 4. Initialize Interactive Brokers (IBKR) for Forex Gateway with proper socket check
+        # 4. Initialize Interactive Brokers (IBKR) for Forex Live Gateway (Port 7496 for Live TWS)
         if ibkr_creds.get("host") and ibkr_creds.get("port") and IBKR_SDK_AVAILABLE:
             if "IBKR" not in self.exchanges:
                 self.ibkr_client = IB()
                 try:
                     await self.ibkr_client.connectAsync(
                         host=ibkr_creds.get("host", "127.0.0.1"),
-                        port=int(ibkr_creds.get("port", 7497)),
+                        port=int(ibkr_creds.get("port", 7496)), # Port 7496 is Live TWS/Gateway
                         clientId=int(ibkr_creds.get("client_id", 1))
                     )
                     self.exchanges["IBKR"] = self.ibkr_client
-                    logger.info("[IBKR] Interactive Brokers gateway connection initialized.")
+                    logger.info("[IBKR] Interactive Brokers LIVE gateway connection initialized.")
                 except Exception as e:
-                    logger.error(f"[IBKR ERROR] Failed to connect to IBKR TWS/Gateway socket: {e}")
+                    logger.error(f"[IBKR ERROR] Failed to connect to IBKR LIVE socket: {e}")
 
     async def close_exchanges(self):
         for key in ["CRYPTO_SPOT", "CRYPTO_FUTURE"]:
@@ -127,10 +130,13 @@ class UniversalMultiBrokerGateway:
         
         if self.ibkr_client and self.ibkr_client.isConnected():
             self.ibkr_client.disconnect()
-            logger.info("[IBKR] Disconnected from Interactive Brokers gateway.")
+            logger.info("[IBKR] Disconnected from Interactive Brokers live gateway.")
 
         if self.session and not self.session.closed:
             await self.session.close()
+
+    def _submit_alpaca_sync(self, client, market_order_data):
+        return client.submit_order(order_data=market_order_data)
 
     async def execute_order(self, order: LiveTradeOrder) -> bool:
         try:
@@ -150,7 +156,7 @@ class UniversalMultiBrokerGateway:
                 await exchange.create_order(order.symbol, 'TAKE_PROFIT_MARKET', inverted_side, order.volume, None, {'stopPrice': order.take_profit})
                 return True
 
-            # --- STOCKS (Alpaca) ---
+            # --- STOCKS (Alpaca Live) ---
             elif order.asset_class == "STOCKS" and "STOCKS" in self.exchanges:
                 client = self.exchanges["STOCKS"]
                 side_enum = OrderSide.BUY if order.side.upper() == "BUY" else OrderSide.SELL
@@ -163,13 +169,13 @@ class UniversalMultiBrokerGateway:
                     take_profit=TakeProfitRequest(limit_price=order.take_profit),
                     stop_loss=StopLossRequest(stop_price=order.stop_loss)
                 )
-                client.submit_order(order_data=market_order_data)
+                await asyncio.to_thread(self._submit_alpaca_sync, client, market_order_data)
                 return True
 
-            # --- FOREX (IBKR) ---
+            # --- FOREX (IBKR Live) ---
             elif order.asset_class == "FOREX" and "IBKR" in self.exchanges:
                 if not IBKR_SDK_AVAILABLE or not self.ibkr_client or not self.ibkr_client.isConnected():
-                    logger.error("[FOREX ERROR] IBKR client is not connected.")
+                    logger.error("[FOREX ERROR] IBKR live client is not connected.")
                     return False
 
                 contract = Forex(order.symbol)
@@ -210,45 +216,75 @@ class ZeroLagMultiMarketEngine:
     def verify_capital(self, account_balance: float) -> bool:
         return account_balance >= self.min_capital
 
+    def is_market_open(self, asset_class: str) -> bool:
+        if asset_class in ["CRYPTO_SPOT", "CRYPTO_FUTURE"]:
+            return True
+
+        ny_tz = pytz.timezone("America/New_York")
+        now_ny = datetime.now(ny_tz)
+        current_time = now_ny.time()
+        current_weekday = now_ny.weekday()
+
+        if asset_class == "STOCKS":
+            if current_weekday >= 5:
+                return False
+            return time(9, 30) <= current_time <= time(16, 0)
+
+        elif asset_class == "FOREX":
+            if current_weekday == 5:
+                return False
+            if current_weekday == 6 and current_time < time(17, 0):
+                return False
+            if current_weekday == 4 and current_time >= time(17, 0):
+                return False
+            return True
+
+        return True
+
+    def calculate_effective_position_size(self, account_balance: float, risk_percentage: float, entry_price: float, stop_loss: float) -> float:
+        if entry_price == stop_loss or account_balance < self.min_capital:
+            return 0.0
+        risk_amount = account_balance * risk_percentage
+        risk_per_unit = abs(entry_price - stop_loss)
+        return round(risk_amount / risk_per_unit, 4)
+
     async def deploy_trade(self, order: LiveTradeOrder, account_balance: float) -> bool:
         if not self.verify_capital(account_balance):
+            logger.warning("[CAPITAL WARNING] Insufficient balance to deploy live trade.")
             return False
+        if not self.is_market_open(order.asset_class):
+            logger.info(f"[SESSION FILTER] Market for {order.symbol} ({order.asset_class}) is currently closed. Bypassing loop.")
+            return False
+            
         await self.gateway.initialize_exchanges()
         return await self.gateway.execute_order(order)
 
     async def run_zero_lag_execution_loop(self, current_balance: float):
         await self.gateway.initialize_exchanges()
-        logger.info("Zero-lag multi-market execution engine active with broker-side protection.")
+        logger.info("Zero-lag live multi-market execution engine active for PRODUCTION.")
 
         try:
             while True:
                 if not self.verify_capital(current_balance):
+                    logger.error("[CRITICAL CAPITAL ERROR] Balance dropped below threshold. Halting live engine.")
                     break
 
+                tasks = []
                 for item in self.symbols_config:
                     symbol = item["symbol"]
                     asset_type = item["asset_class"]
                     
-                    for order in [o for o in self.active_orders if o.symbol == symbol and o.is_active]:
-                        pass
+                    if not self.is_market_open(asset_type):
+                        continue
 
-                await asyncio.sleep(1)
+                    tasks.append(self._process_symbol_loop(symbol, asset_type, current_balance))
+
+                if tasks:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+
+                await asyncio.sleep(0.1)
         finally:
             await self.gateway.close_exchanges()
 
-
-# --- SAFE ASYNC RUNTIME BOOTSTRAPPER (Option 3 Fix) ---
-if __name__ == "__main__":
-    sample_credentials = {
-        "ibkr": {"host": "127.0.0.1", "port": 7497, "client_id": 1}
-    }
-    sample_symbols = [
-        {"symbol": "EURUSD", "asset_class": "FOREX"}
-    ]
-    
-    engine = ZeroLagMultiMarketEngine(symbols_config=sample_symbols, min_capital=20.0, credentials=sample_credentials)
-    
-    try:
-        asyncio.run(engine.run_zero_lag_execution_loop(current_balance=100.0))
-    except KeyboardInterrupt:
-        logger.info("Engine safely terminated by user.")
+    async def _process_symbol_loop(self, symbol: str, asset_type: str, balance: float):
+        pass
