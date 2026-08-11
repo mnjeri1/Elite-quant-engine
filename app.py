@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import asyncio
 from datetime import datetime
-from core_engine import InstitutionalGateway
+from elite_quant_engine import InstitutionalGateway
 
 # 1. Page Config
 st.set_page_config(
