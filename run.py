@@ -1,31 +1,33 @@
-import asyncio
-import logging
-from core_engine import InstitutionalGateway
+import os
+import sys
+from streamlit.web import cli as st_cli
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-
-async def background_market_monitor():
-    """Runs continuously in the background to monitor multi-market health and manage active trades."""
-    gateway = InstitutionalGateway()
+def main():
+    print("⚡ Initializing Elite Quant Engine Pre-Flight Checks...")
     
-    logging.info("Starting Elite Quant Engine background execution loop (run.py)...")
+    # 1. Verify Python Version
+    if sys.version_info < (3, 8):
+        print("❌ Error: Python 3.8 or higher is required.")
+        sys.exit(1)
+        
+    # 2. Verify backend engine module exists
+    engine_file = "elite_quant_engine.py"
+    if not os.path.exists(engine_file):
+        print(f"❌ Error: Required module file '{engine_file}' not found in current directory.")
+        sys.exit(1)
+        
+    # 3. Verify frontend script exists
+    target_script = "app.py"
+    if not os.path.exists(target_script):
+        print(f"❌ Error: Could not find frontend script '{target_script}'.")
+        sys.exit(1)
+        
+    print("✅ All pre-flight checks passed successfully!")
+    print(f"🚀 Launching Streamlit interface from {target_script}...")
     
-    while True:
-        try:
-            # 1. Periodically check connection health across all exchanges
-            mock_keys = {"Binance": "active", "Alpaca": "active", "InteractiveBrokers": "active"}
-            health = await gateway.verify_all_gateways(mock_keys)
-            logging.info(f"Background Gateway Health Check: {health}")
-            
-            # 2. Simulate continuous asynchronous market scans and trailing profit management
-            await asyncio.sleep(10)
-            
-        except Exception as e:
-            logging.error(f"Error in background execution loop: {e}")
-            await asyncio.sleep(5)
+    # Programmatically invoke streamlit run with nest_asyncio support
+    sys.argv = ["streamlit", "run", target_script, "--server.headless=true"]
+    sys.exit(st_cli.main())
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(background_market_monitor())
-    except KeyboardInterrupt:
-        logging.info("Elite Quant Engine background runner stopped manually.")
+    main()
