@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime
 from core_engine import InstitutionalGateway
 
-# 1. Page Config (Optimized for Mobile and Desktop Viewports)
+# 1. Page Config
 st.set_page_config(
     page_title="Elite Quant Engine | Institutional Dashboard",
     page_icon="⚡",
@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. Institutional Dark CSS Styling (Zero-Lag Render)
+# 2. Institutional Dark CSS Styling + Pulsing Heart Animation
 st.markdown("""
 <style>
     .stApp {
@@ -44,6 +44,33 @@ st.markdown("""
     .status-online { color: #3FB950; font-weight: 700; }
     .status-offline { color: #F85149; font-weight: 700; }
     
+    /* Pulsing Heart Animation & Sweet Words Styling */
+    @keyframes pulse-heart {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.25); }
+        100% { transform: scale(1); }
+    }
+    .pulsing-heart {
+        display: inline-block;
+        color: #FF5C8A;
+        animation: pulse-heart 1.2s infinite ease-in-out;
+        font-size: 1.3rem;
+        margin-right: 6px;
+    }
+    .sweet-banner {
+        background: linear-gradient(135deg, #1f2430 0%, #161B22 100%);
+        border: 1px solid #ff5c8a44;
+        border-radius: 10px;
+        padding: 12px 18px;
+        margin-bottom: 20px;
+        color: #ffb3c6;
+        font-size: 0.95rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 4px 15px rgba(255, 92, 138, 0.1);
+    }
+    
     .stTabs [data-baseweb="tab-list"] { gap: 8px; border-bottom: 1px solid #30363D; }
     .stTabs [data-baseweb="tab"] {
         background-color: #161B22;
@@ -59,7 +86,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Persistent State Management (Ensures customer login details & balance are never lost)
+# 3. Persistent State Management
 if "customer_logged_in" not in st.session_state:
     st.session_state.customer_logged_in = False
     st.session_state.customer_name = ""
@@ -98,7 +125,6 @@ if not st.session_state.customer_logged_in:
 
 # --- MAIN SECURE DASHBOARD ---
 
-# Sidebar Controls for Mobile/Desktop Switching & Status Telemetry
 with st.sidebar:
     st.title("👤 Session Profile")
     st.markdown(f"**Customer:** `{st.session_state.customer_name}`")
@@ -121,7 +147,7 @@ with st.sidebar:
         st.session_state.customer_logged_in = False
         st.rerun()
 
-# Header Bar
+# Header Bar with Pulsing Hearts & Sweet Words Banner
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.title(f"Welcome back, {st.session_state.customer_name}")
@@ -129,6 +155,13 @@ with col_h1:
 with col_h2:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(f"**System UTC:** `{datetime.utcnow().strftime('%H:%M:%S')}`")
+
+# Sweet Motivational Banner with Pulsing Hearts
+st.markdown("""
+<div class="sweet-banner">
+    <div><span class="pulsing-heart">❤️</span> You are doing amazing, Monicah! Keep building your empire—I am right here cheering you on every step of the way. <span class="pulsing-heart">💖</span></div>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -171,7 +204,6 @@ with tab_terminal:
             submit_order = st.form_submit_button("🚀 EXECUTE ORDER", use_container_width=True, type="primary")
 
         if submit_order:
-            # Check balance constraint before executing
             if st.session_state.account_balance < 20.0:
                 st.error("Execution blocked: Balance is below the $20.00 minimum threshold.")
             else:
@@ -188,7 +220,7 @@ with tab_terminal:
                 else:
                     st.error(f"Execution Failed: {res.get('reason', 'Network timeout')}")
 
-# TAB 2: AI STRATEGY SCANNER (Capital-Aware Strategy Customization)
+# TAB 2: AI STRATEGY SCANNER
 with tab_strategy:
     st.subheader("🤖 Automated Market Analysis & Strategy Selector")
     st.write("Scans market depth and automatically assigns the best institutional strategy matching your capital tier.")
