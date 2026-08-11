@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import asyncio
 from datetime import datetime
-from core_engine import InstitutionalGateway
+from elite_quant_engine import InstitutionalGateway
 
 st.set_page_config(
     page_title="Elite Quant Engine | Multi-Market Terminal",
