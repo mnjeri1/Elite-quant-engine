@@ -5,8 +5,14 @@ import nest_asyncio
 from datetime import datetime
 from elite_quant_engine import InstitutionalGateway
 
-# Apply nest_asyncio to support asynchronous calls inside Streamlit loops
-nest_asyncio.apply()
+# Safely target and patch the active loop explicitly to prevent type mismatches
+try:
+    loop = asyncio.get_event_loop_policy().get_event_loop()
+    nest_asyncio.apply(loop)
+except Exception:
+    new_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(new_loop)
+    nest_asyncio.apply(new_loop)
 
 st.set_page_config(
     page_title="elite_quant_engine | Multi-Market Terminal",
@@ -142,7 +148,6 @@ with st.sidebar:
         st.markdown(f"**{gateway_node}**: {badge} `{latency}ms`")
         
     st.markdown("---")
-    # Bug Fix: removed invalid argument 'use_control_width'
     if st.button("🔒 Lock Session / Log Out", use_container_width=True):
         st.session_state.customer_logged_in = False
         st.rerun()
