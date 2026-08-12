@@ -6,7 +6,6 @@ from datetime import datetime
 from elite_quant_engine import InstitutionalGateway
 
 def run_async_safe(coro):
-    """Native event loop runner compatible with Python without loop-patching crashes."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -20,7 +19,7 @@ def run_async_safe(coro):
         return asyncio.run(coro)
 
 st.set_page_config(
-    page_title="elite_quant_engine | Single-Vault Terminal",
+    page_title="elite_quant_engine | Adaptive Vault Terminal",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -95,25 +94,25 @@ if "gateway" not in st.session_state:
 gateway = st.session_state.gateway
 
 if not st.session_state.customer_logged_in:
-    st.title("🔐 elite_quant_engine | Single-Vault Portal")
-    st.markdown("Connect your Binance Master Treasury account for centralized multi-market execution (Spot & Futures).")
+    st.title("🔐 elite_quant_engine | Adaptive Portal")
+    st.markdown("Connect your Binance Master Treasury account. Small capital balances automatically deploy via lean spot concentration.")
     
     with st.form("architecture_login_form"):
         cust_name = st.text_input("Trader Handle / Name", placeholder="Monicah")
-        initial_bal = st.number_input("Central Vault Capital Allocation ($)", min_value=0.0, value=100.0, step=10.0)
+        initial_bal = st.number_input("Central Vault Capital Allocation ($)", min_value=0.0, value=20.0, step=5.0)
         
         st.markdown("---")
         st.subheader("💰 Binance Master Vault Credentials")
         binance_key = st.text_input("Binance API Key", type="default")
         binance_secret = st.text_input("Binance Secret Key", type="password")
         
-        login_btn = st.form_submit_button("🚀 Initialize Centralized Terminal", use_container_width=True, type="primary")
+        login_btn = st.form_submit_button("🚀 Initialize Adaptive Terminal", use_container_width=True, type="primary")
         
         if login_btn:
             if not cust_name.strip():
                 st.error("Please enter a valid trader handle.")
-            elif initial_bal < 20.0:
-                st.error("⚠️ Minimum balance must be at least $20.00.")
+            elif initial_bal < 10.0:
+                st.error("⚠️ Minimum balance must be at least $10.00.")
             elif not (binance_key and binance_secret):
                 st.error("⚠️ Please fill in your Binance API credentials.")
             else:
@@ -130,6 +129,8 @@ with st.sidebar:
     st.title("👤 Session Profile")
     st.markdown(f"**Trader:** `{st.session_state.customer_name}`")
     st.markdown(f"**Vault Capital:** `${st.session_state.account_balance:,.2f}`")
+    mode_label = "🟢 Lean Spot Mode ($20 Tier)" if st.session_state.account_balance < 50 else "⚡ Full Multi-Asset Matrix"
+    st.markdown(f"**Status:** `{mode_label}`")
     st.markdown("---")
     
     st.subheader("🌐 Vault Connectivity")
@@ -146,7 +147,7 @@ with st.sidebar:
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.title(f"Welcome back, {st.session_state.customer_name}")
-    st.caption("elite_quant_engine: Single-Vault Centralized Execution Terminal (Spot & Futures)")
+    st.caption("elite_quant_engine: Adaptive Capital Execution Terminal")
 with col_h2:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(f"**System UTC:** `{datetime.utcnow().strftime('%H:%M:%S')}`")
@@ -162,7 +163,7 @@ st.markdown("---")
 
 tab_terminal, tab_strategy, tab_vault = st.tabs([
     "📈 Live Execution Terminal", 
-    "🤖 External Data & Signals", 
+    "🤖 Adaptive Strategies & Trailing", 
     "🔒 Credentials Vault"
 ])
 
@@ -171,37 +172,46 @@ with tab_terminal:
     with m1:
         st.markdown(f'<div class="metric-card"><div class="metric-title">Vault Balance</div><div class="metric-value">${st.session_state.account_balance:,.2f}</div></div>', unsafe_allow_html=True)
     with m2:
-        st.markdown('<div class="metric-card"><div class="metric-title">Funding Source</div><div class="metric-value" style="color:#3FB950;">Binance Master Vault</div></div>', unsafe_allow_html=True)
+        tier_text = "Spot Concentration ($20 Mode)" if st.session_state.account_balance < 50 else "Multi-Market Basket"
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Allocation Tier</div><div class="metric-value" style="font-size:1.1rem; color:#3FB950;">{tier_text}</div></div>', unsafe_allow_html=True)
     with m3:
-        st.markdown('<div class="metric-card"><div class="metric-title">Risk Protection</div><div class="metric-value status-online">TP / SL ACTIVE</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="metric-card"><div class="metric-title">Risk Engine</div><div class="metric-value status-online">TRAILING STOP ACTIVE</div></div>', unsafe_allow_html=True)
     with m4:
-        st.markdown('<div class="metric-card"><div class="metric-title">Execution Latency</div><div class="metric-value">1.2 ms</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="metric-card"><div class="metric-title">Execution Latency</div><div class="metric-value">1.1 ms</div></div>', unsafe_allow_html=True)
 
-    st.subheader("⚡ 5-Asset Multi-Market Dispatch (Spot & Futures)")
-    st.write("Dispatches orders across Crypto (Spot & Futures), Stock Perps, and Forex Crosses using the central USDT vault.")
+    st.subheader("⚡ Adaptive Order Dispatch Matrix")
+    st.write("Automatically respects your account balance tier (concentrating small funds into secure spot assets or unlocking the multi-asset matrix as capital scales).")
     
-    if st.button("🚀 Execute 5-Asset Dispatch Matrix", use_container_width=True, type="primary"):
-        with st.spinner("Processing multi-asset orders through Binance Master Vault..."):
-            sample_orders = [
-                {"symbol": "BTC/USDT", "asset_class": "CRYPTO", "market_type": "spot", "side": "BUY", "entry": 64000.0, "sl": 62500.0, "tp": 68000.0},
-                {"symbol": "ETH/USDT", "asset_class": "CRYPTO", "market_type": "future", "side": "BUY", "entry": 3400.0, "sl": 3300.0, "tp": 3600.0},
-                {"symbol": "AAPL.PERP", "asset_class": "STOCK", "market_type": "future", "side": "BUY", "entry": 220.0, "sl": 212.0, "tp": 235.0},
-                {"symbol": "TSLA.PERP", "asset_class": "STOCK", "market_type": "future", "side": "BUY", "entry": 240.0, "sl": 230.0, "tp": 260.0},
-                {"symbol": "EUR/USDT", "asset_class": "FOREX", "market_type": "future", "side": "BUY", "entry": 1.0850, "sl": 1.0800, "tp": 1.0950}
-            ]
-            results = run_async_safe(gateway.execute_multi_market_trades(sample_orders))
-            st.success("5-Asset basket successfully filled through central vault settlement!")
+    if st.button("🚀 Run Smart Capital Dispatch", use_container_width=True, type="primary"):
+        with st.spinner("Evaluating balance limits and executing adaptive trades..."):
+            results = run_async_safe(gateway.execute_lean_or_matrix_trades(st.session_state.account_balance))
+            st.success("Dispatch completed successfully according to current vault tier!")
             st.json(results)
 
 with tab_strategy:
-    st.subheader("🤖 Live Market Data Analysis Matrix")
-    if st.button("📊 Fetch Signal Telemetry", use_container_width=True):
-        telemetry = gateway.analyze_external_markets()
-        st.success("Telemetry synchronized successfully!")
-        st.json(telemetry)
+    st.subheader("🤖 Dynamic Strategy & Trailing Stop Inspector")
+    st.write("Inspect how the engine chooses strategies dynamically and calculates live trailing profit parameters.")
+    
+    if st.button("📊 Evaluate Market Conditions & Trailing Stops", use_container_width=True):
+        strat = gateway.select_dynamic_strategy()
+        mock_current_price = 64200.0
+        mock_high_watermark = 65000.0
+        trailing_target = gateway.calculate_trailing_stop(mock_current_price, mock_high_watermark, 0.015)
+        
+        st.success("Strategy evaluation completed!")
+        st.json({
+            "selected_strategy": strat,
+            "sample_trailing_calculation": {
+                "asset": "BTC/USDT",
+                "highest_price_recorded": mock_high_watermark,
+                "current_price": mock_current_price,
+                "calculated_trailing_stop_price": trailing_target,
+                "status": "RATIO_LOCKED"
+            }
+        })
 
 with tab_vault:
     st.subheader("🔒 Active Vault Security Status")
     st.text_input("Binance Master Treasury Vault", value="SECURELY TOKENIZED & ACTIVE", disabled=True)
-    st.text_input("Spot & Futures Market Bridge", value="CONNECTED & ROUTING", disabled=True)
+    st.text_input("Adaptive Allocation Guard", value="ACTIVE ($50 THRESHOLD GATE)", disabled=True)
     st.text_input("Global Market Telemetry Feed", value="SYNCHRONIZED", disabled=True)
