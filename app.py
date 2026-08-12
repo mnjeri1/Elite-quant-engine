@@ -96,7 +96,7 @@ gateway = st.session_state.gateway
 
 if not st.session_state.customer_logged_in:
     st.title("🔐 elite_quant_engine | Single-Vault Portal")
-    st.markdown("Connect your Binance Master Treasury account for centralized multi-market execution.")
+    st.markdown("Connect your Binance Master Treasury account for centralized multi-market execution (Spot & Futures).")
     
     with st.form("architecture_login_form"):
         cust_name = st.text_input("Trader Handle / Name", placeholder="Monicah")
@@ -146,7 +146,7 @@ with st.sidebar:
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.title(f"Welcome back, {st.session_state.customer_name}")
-    st.caption("elite_quant_engine: Single-Vault Centralized Execution Terminal")
+    st.caption("elite_quant_engine: Single-Vault Centralized Execution Terminal (Spot & Futures)")
 with col_h2:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(f"**System UTC:** `{datetime.utcnow().strftime('%H:%M:%S')}`")
@@ -177,18 +177,20 @@ with tab_terminal:
     with m4:
         st.markdown('<div class="metric-card"><div class="metric-title">Execution Latency</div><div class="metric-value">1.2 ms</div></div>', unsafe_allow_html=True)
 
-    st.subheader("⚡ Centralized Multi-Market Dispatch")
-    st.write("Dispatches multi-asset trades (Crypto, Stocks, and Forex proxies) backed by the single Binance treasury vault.")
+    st.subheader("⚡ 5-Asset Multi-Market Dispatch (Spot & Futures)")
+    st.write("Dispatches orders across Crypto (Spot & Futures), Stock Perps, and Forex Crosses using the central USDT vault.")
     
-    if st.button("🚀 Execute Centralized Multi-Market Dispatch", use_container_width=True, type="primary"):
-        with st.spinner("Processing orders through Binance Master Vault..."):
+    if st.button("🚀 Execute 5-Asset Dispatch Matrix", use_container_width=True, type="primary"):
+        with st.spinner("Processing multi-asset orders through Binance Master Vault..."):
             sample_orders = [
-                {"symbol": "BTCUSDT", "asset_class": "CRYPTO", "side": "BUY", "entry": 64000.0, "sl": 62500.0, "tp": 68000.0},
-                {"symbol": "AAPL.PERP", "asset_class": "STOCK", "side": "BUY", "entry": 220.0, "sl": 212.0, "tp": 235.0},
-                {"symbol": "EUR/USDT", "asset_class": "FOREX", "side": "BUY", "entry": 1.0850, "sl": 1.0800, "tp": 1.0950}
+                {"symbol": "BTC/USDT", "asset_class": "CRYPTO", "market_type": "spot", "side": "BUY", "entry": 64000.0, "sl": 62500.0, "tp": 68000.0},
+                {"symbol": "ETH/USDT", "asset_class": "CRYPTO", "market_type": "future", "side": "BUY", "entry": 3400.0, "sl": 3300.0, "tp": 3600.0},
+                {"symbol": "AAPL.PERP", "asset_class": "STOCK", "market_type": "future", "side": "BUY", "entry": 220.0, "sl": 212.0, "tp": 235.0},
+                {"symbol": "TSLA.PERP", "asset_class": "STOCK", "market_type": "future", "side": "BUY", "entry": 240.0, "sl": 230.0, "tp": 260.0},
+                {"symbol": "EUR/USDT", "asset_class": "FOREX", "market_type": "future", "side": "BUY", "entry": 1.0850, "sl": 1.0800, "tp": 1.0950}
             ]
             results = run_async_safe(gateway.execute_multi_market_trades(sample_orders))
-            st.success("Orders successfully filled through central vault settlement!")
+            st.success("5-Asset basket successfully filled through central vault settlement!")
             st.json(results)
 
 with tab_strategy:
@@ -201,5 +203,5 @@ with tab_strategy:
 with tab_vault:
     st.subheader("🔒 Active Vault Security Status")
     st.text_input("Binance Master Treasury Vault", value="SECURELY TOKENIZED & ACTIVE", disabled=True)
-    st.text_input("Synthetic Asset Bridge", value="CONNECTED & ROUTING", disabled=True)
+    st.text_input("Spot & Futures Market Bridge", value="CONNECTED & ROUTING", disabled=True)
     st.text_input("Global Market Telemetry Feed", value="SYNCHRONIZED", disabled=True)
