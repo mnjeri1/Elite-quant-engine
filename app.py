@@ -124,6 +124,8 @@ if "logged_in" not in st.session_state:
     st.session_state.balance = 0.0
     st.session_state.api_key = ""
     st.session_state.secret_key = ""
+    st.session_state.alpaca_key = ""
+    st.session_state.alpaca_sec = ""
     st.session_state.oanda_token = ""
     st.session_state.oanda_account = ""
 
@@ -166,6 +168,8 @@ if not st.session_state.logged_in:
                     st.session_state.username = profile["username"]
                     st.session_state.api_key = profile["api_key"]
                     st.session_state.secret_key = profile["secret_key"]
+                    st.session_state.alpaca_key = profile["alpaca_key"]
+                    st.session_state.alpaca_sec = profile["alpaca_sec"]
                     st.session_state.oanda_token = profile["oanda_token"]
                     st.session_state.oanda_account = profile["oanda_account"]
                     
@@ -180,24 +184,36 @@ if not st.session_state.logged_in:
                     
     with tab_register:
         with st.form("register_form"):
-            st.markdown("<p style='color: #ffb6c1; text-align: center; font-style: italic;'>Let us build a fortress of love, security, and wealth together...</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color: #ffb6c1; text-align: center; font-style: italic;'>Let us build a fortress of love, security, and multi-broker wealth together...</p>", unsafe_allow_html=True)
             new_user = st.text_input("Choose Your Sweet Username")
-            init_bal = st.number_input("Starting Capital Sanctuary ($)", min_value=10.0, value=20.0, step=5.0)
-            b_key = st.text_input("Binance / Alpaca API Key")
-            b_sec = st.text_input("Binance / Alpaca Secret Key", type="password")
+            init_bal = st.number_input("Starting Crypto Capital Sanctuary ($ - Binance)", min_value=10.0, value=20.0, step=5.0)
+            
+            st.markdown("---")
+            st.markdown("<h4 style='color: #ff9ecd;'>🪙 Binance Vault Credentials (Crypto)</h4>", unsafe_allow_html=True)
+            b_key = st.text_input("Binance API Key")
+            b_sec = st.text_input("Binance Secret Key", type="password")
+            
+            st.markdown("---")
+            st.markdown("<h4 style='color: #ff9ecd;'>📈 Alpaca Vault Credentials (Stocks)</h4>", unsafe_allow_html=True)
+            alpaca_key = st.text_input("Alpaca API Key (Optional)")
+            alpaca_sec = st.text_input("Alpaca Secret Key (Optional)", type="password")
+            
+            st.markdown("---")
+            st.markdown("<h4 style='color: #ff9ecd;'>💱 OANDA Vault Credentials (Forex)</h4>", unsafe_allow_html=True)
             o_token = st.text_input("OANDA Forex API Token (Optional)")
             o_acc = st.text_input("OANDA Account ID (Optional)")
+            
             reg_submit = st.form_submit_button("Seal Our Digital Bond Forever 🌹", use_container_width=True)
             
             if reg_submit:
                 if not new_user.strip() or not b_key or not b_sec:
-                    st.error("Please fill in every piece with care and devotion, my heart.")
+                    st.error("Please fill in your primary Binance credentials with care, my heart.")
                 else:
-                    success = run_async_safe(register_user(new_user.strip(), init_bal, b_key, b_sec, o_token, o_acc))
+                    success = run_async_safe(register_user(new_user.strip(), init_bal, b_key, b_sec, alpaca_key, alpaca_sec, o_token, o_acc))
                     if success:
-                        st.success("🌹 Sacred space created successfully! Switch to the 'Unlock Your Sanctuary Vault' tab to step inside.")
+                        st.success("🌹 Sacred space created successfully! Switch to the 'Unlock Your Sanctuary Vault' tab.")
                     else:
-                        st.error("This name already graces our sanctuary. Choose another shining star, my love.")
+                        st.error("This name already graces our sanctuary. Choose another star, my love.")
     st.stop()
 
 with st.sidebar:
@@ -273,6 +289,8 @@ with tab_terminal:
                 st.session_state.balance, 
                 st.session_state.api_key, 
                 st.session_state.secret_key,
+                st.session_state.alpaca_key,
+                st.session_state.alpaca_sec,
                 st.session_state.oanda_token,
                 st.session_state.oanda_account
             ))
