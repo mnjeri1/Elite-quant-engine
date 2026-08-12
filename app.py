@@ -1,18 +1,23 @@
 import os
 import streamlit as st
 import asyncio
-import nest_asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from elite_quant_engine import InstitutionalGateway
 
-# Safely target and patch the active loop explicitly to prevent type mismatches
-try:
-    loop = asyncio.get_event_loop_policy().get_event_loop()
-    nest_asyncio.apply(loop)
-except Exception:
-    new_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(new_loop)
-    nest_asyncio.apply(new_loop)
+def run_async_safe(coro):
+    """Native event loop runner compatible with Python 3.14 without loop-patching crashes."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+    else:
+        return asyncio.run(coro)
 
 st.set_page_config(
     page_title="elite_quant_engine | Multi-Market Terminal",
@@ -131,7 +136,7 @@ if not st.session_state.customer_logged_in:
                     "Alpaca_Execution": {"id": alpaca_key, "secret": alpaca_secret},
                     "IBKR_Execution": {"id": ibkr_key, "secret": ""}
                 }
-                asyncio.run(gateway.verify_all_gateways(credentials_package))
+                run_async_safe(gateway.verify_all_gateways(credentials_package))
                 st.rerun()
     st.stop()
 
@@ -196,7 +201,7 @@ with tab_terminal:
                 {"symbol": "AAPL", "asset_class": "STOCK", "side": "BUY", "entry": 220.0, "sl": 212.0, "tp": 235.0},
                 {"symbol": "EUR/USD", "asset_class": "FOREX", "side": "BUY", "entry": 1.0850, "sl": 1.0800, "tp": 1.0950}
             ]
-            results = asyncio.run(gateway.execute_multi_market_trades(sample_orders))
+            results = run_async_safe(gateway.execute_multi_market_trades(sample_orders))
             st.success("Orders successfully filled across respective broker endpoints!")
             st.json(results)
 
