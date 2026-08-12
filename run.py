@@ -8,12 +8,12 @@ def main():
         print("❌ Error: Python 3.8 or higher is required.")
         sys.exit(1)
         
-    for f in ["database.py", "elite_quant_engine.py", "app.py"]:
+    for f in ["database.py", "elite_quant_engine.py", "support_bot.py", "app.py"]:
         if not os.path.exists(f):
             print(f"❌ Error: Required file '{f}' not found.")
             sys.exit(1)
             
-    print("✅ All pre-flight checks passed successfully!")
+    print("✅ All pre-flight checks passed successfully! Launching sanctuary...")
     sys.argv = ["streamlit", "run", "app.py", "--server.headless=true"]
     sys.exit(st_cli.main())
 
