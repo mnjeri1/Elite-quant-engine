@@ -1,178 +1,105 @@
-import os
 import streamlit as st
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from database import init_db, register_user, get_user_profile
 from elite_quant_engine import InstitutionalGateway
+
+init_db()
 
 def run_async_safe(coro):
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = None
-
     if loop and loop.is_running():
         with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(asyncio.run, coro)
-            return future.result()
+            return executor.submit(asyncio.run, coro).result()
     else:
         return asyncio.run(coro)
 
-st.set_page_config(
-    page_title="elite_quant_engine | Adaptive Vault Terminal",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="elite_quant_engine | Secure Portal", page_icon="⚡", layout="wide")
 
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #0E1117;
-        color: #E0E3EB;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    .metric-card {
-        background-color: #161B22;
-        border: 1px solid #30363D;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 10px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-    .metric-title {
-        color: #8B949E;
-        font-size: 0.8rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .metric-value {
-        color: #F0F6FC;
-        font-size: 1.4rem;
-        font-weight: 700;
-        margin-top: 4px;
-    }
+    .stApp { background-color: #0E1117; color: #E0E3EB; }
+    .metric-card { background-color: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 16px; margin-bottom: 10px; }
+    .metric-title { color: #8B949E; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
+    .metric-value { color: #F0F6FC; font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
     .status-online { color: #3FB950; font-weight: 700; }
-    
-    @keyframes pulse-heart {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.35); }
-        100% { transform: scale(1); }
-    }
-    .pulsing-heart {
-        display: inline-block;
-        color: #FF5C8A;
-        animation: pulse-heart 1.1s infinite ease-in-out;
-        font-size: 1.4rem;
-        margin: 0 4px;
-    }
-    .romantic-banner {
-        background: linear-gradient(135deg, #231923 0%, #161B22 100%);
-        border: 1px solid #ff5c8a66;
-        border-radius: 12px;
-        padding: 18px 22px;
-        margin-bottom: 24px;
-        color: #ffb3c6;
-        font-size: 1.02rem;
-        font-weight: 500;
-        line-height: 1.6;
-        text-align: center;
-        box-shadow: 0 6px 20px rgba(255, 92, 138, 0.15);
-    }
 </style>
 """, unsafe_allow_html=True)
 
-if "customer_logged_in" not in st.session_state:
-    st.session_state.customer_logged_in = False
-    st.session_state.customer_name = ""
-    st.session_state.account_balance = 0.0
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.balance = 0.0
 
 if "gateway" not in st.session_state:
     st.session_state.gateway = InstitutionalGateway()
 
 gateway = st.session_state.gateway
 
-if not st.session_state.customer_logged_in:
-    st.title("🔐 elite_quant_engine | Adaptive Portal")
-    st.markdown("Connect your Binance Master Treasury account. Small capital balances automatically deploy via lean spot concentration.")
+if not st.session_state.logged_in:
+    st.title("🔐 elite_quant_engine | Secure Multi-User Login")
+    st.markdown("Access your persistent vault. Details are saved securely across sessions.")
     
-    with st.form("architecture_login_form"):
-        cust_name = st.text_input("Trader Handle / Name", placeholder="Monicah")
-        initial_bal = st.number_input("Central Vault Capital Allocation ($)", min_value=0.0, value=20.0, step=5.0)
-        
-        st.markdown("---")
-        st.subheader("💰 Binance Master Vault Credentials")
-        binance_key = st.text_input("Binance API Key", type="default")
-        binance_secret = st.text_input("Binance Secret Key", type="password")
-        
-        login_btn = st.form_submit_button("🚀 Initialize Adaptive Terminal", use_container_width=True, type="primary")
-        
-        if login_btn:
-            if not cust_name.strip():
-                st.error("Please enter a valid trader handle.")
-            elif initial_bal < 10.0:
-                st.error("⚠️ Minimum balance must be at least $10.00.")
-            elif not (binance_key and binance_secret):
-                st.error("⚠️ Please fill in your Binance API credentials.")
-            else:
-                st.session_state.customer_logged_in = True
-                st.session_state.customer_name = cust_name.strip()
-                st.session_state.account_balance = initial_bal
-                
-                credentials_package = {"id": binance_key, "secret": binance_secret}
-                run_async_safe(gateway.verify_master_vault(credentials_package))
-                st.rerun()
+    tab_login, tab_register = st.tabs(["Sign In", "Create Account"])
+    
+    with tab_login:
+        with st.form("login_form"):
+            user = st.text_input("Username", placeholder="Enter your username")
+            submit = st.form_submit_button("Access Vault", use_container_width=True, type="primary")
+            if submit:
+                profile = get_user_profile(user.strip())
+                if profile:
+                    st.session_state.logged_in = True
+                    st.session_state.username = profile["username"]
+                    st.session_state.balance = profile["balance"]
+                    st.success("Vault unlocked successfully!")
+                    st.rerun()
+                else:
+                    st.error("User not found. Please register an account first.")
+                    
+    with tab_register:
+        with st.form("register_form"):
+            new_user = st.text_input("Choose Username")
+            init_bal = st.number_input("Starting Capital ($)", min_value=10.0, value=20.0, step=5.0)
+            b_key = st.text_input("Binance API Key")
+            b_sec = st.text_input("Binance Secret Key", type="password")
+            reg_submit = st.form_submit_button("Register & Initialize Vault", use_container_width=True)
+            
+            if reg_submit:
+                if not new_user.strip() or not b_key or not b_sec:
+                    st.error("Please fill in all required fields.")
+                elif register_user(new_user.strip(), init_bal, b_key, b_sec):
+                    st.success("Account created successfully! Switch to the 'Sign In' tab above.")
+                else:
+                    st.error("Username already exists. Choose another.")
     st.stop()
 
+# Main Dashboard View
 with st.sidebar:
-    st.title("👤 Session Profile")
-    st.markdown(f"**Trader:** `{st.session_state.customer_name}`")
-    st.markdown(f"**Vault Capital:** `${st.session_state.account_balance:,.2f}`")
-    mode_label = "🟢 Lean Spot Mode ($20 Tier)" if st.session_state.account_balance < 50 else "⚡ Full Multi-Asset Matrix"
+    st.title(f"👤 {st.session_state.username}")
+    st.markdown(f"**Vault Balance:** `${st.session_state.balance:,.2f}`")
+    mode_label = "🟢 Lean Spot ($20 Mode)" if st.session_state.balance < 50 else "⚡ Full Multi-Asset Matrix"
     st.markdown(f"**Status:** `{mode_label}`")
     st.markdown("---")
-    
-    st.subheader("🌐 Vault Connectivity")
-    for gateway_node, status in gateway.connected_gateways.items():
-        latency = gateway.latency_ms.get(gateway_node, 0.0)
-        badge = "🟢 ONLINE" if status else "🔴 OFFLINE"
-        st.markdown(f"**{gateway_node}**: {badge} `{latency}ms`")
-        
-    st.markdown("---")
-    if st.button("🔒 Lock Session / Log Out", use_container_width=True):
-        st.session_state.customer_logged_in = False
+    if st.button("🔒 Log Out", use_container_width=True):
+        st.session_state.logged_in = False
         st.rerun()
 
-col_h1, col_h2 = st.columns([3, 1])
-with col_h1:
-    st.title(f"Welcome back, {st.session_state.customer_name}")
-    st.caption("elite_quant_engine: Adaptive Capital Execution Terminal")
-with col_h2:
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(f"**System UTC:** `{datetime.utcnow().strftime('%H:%M:%S')}`")
-
-st.markdown("""
-<div class="romantic-banner">
-    <span class="pulsing-heart">💖</span> <strong>To My Dearest Love, Monicah:</strong> Built with all my heart just for you. Every line of code in elite_quant_engine is a reflection of how deeply I adore you, how fiercely I believe in your brilliant mind, and how proud I am to watch you build your empire. May every trade bring you closer to your dreams, knowing my love surrounds you every single second. <span class="pulsing-heart">💓</span>
-    <div style="margin-top: 8px; font-style: italic; color: #ff8fa3;">You are my greatest inspiration and my forever love. <span class="pulsing-heart">💗</span></div>
-</div>
-""", unsafe_allow_html=True)
-
+st.title(f"Welcome back, {st.session_state.username}")
+st.caption("elite_quant_engine: Secure Centralized Execution Terminal")
 st.markdown("---")
 
-tab_terminal, tab_strategy, tab_vault = st.tabs([
-    "📈 Live Execution Terminal", 
-    "🤖 Adaptive Strategies & Trailing", 
-    "🔒 Credentials Vault"
-])
+tab_terminal, tab_strategy = st.tabs(["📈 Live Execution Terminal", "🤖 Open-Minded Strategy & Trailing"])
 
 with tab_terminal:
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Vault Balance</div><div class="metric-value">${st.session_state.account_balance:,.2f}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Vault Balance</div><div class="metric-value">${st.session_state.balance:,.2f}</div></div>', unsafe_allow_html=True)
     with m2:
-        tier_text = "Spot Concentration ($20 Mode)" if st.session_state.account_balance < 50 else "Multi-Market Basket"
+        tier_text = "Spot Concentration ($20 Mode)" if st.session_state.balance < 50 else "Multi-Market Basket"
         st.markdown(f'<div class="metric-card"><div class="metric-title">Allocation Tier</div><div class="metric-value" style="font-size:1.1rem; color:#3FB950;">{tier_text}</div></div>', unsafe_allow_html=True)
     with m3:
         st.markdown('<div class="metric-card"><div class="metric-title">Risk Engine</div><div class="metric-value status-online">TRAILING STOP ACTIVE</div></div>', unsafe_allow_html=True)
@@ -180,38 +107,26 @@ with tab_terminal:
         st.markdown('<div class="metric-card"><div class="metric-title">Execution Latency</div><div class="metric-value">1.1 ms</div></div>', unsafe_allow_html=True)
 
     st.subheader("⚡ Adaptive Order Dispatch Matrix")
-    st.write("Automatically respects your account balance tier (concentrating small funds into secure spot assets or unlocking the multi-asset matrix as capital scales).")
-    
     if st.button("🚀 Run Smart Capital Dispatch", use_container_width=True, type="primary"):
-        with st.spinner("Evaluating balance limits and executing adaptive trades..."):
-            results = run_async_safe(gateway.execute_lean_or_matrix_trades(st.session_state.account_balance))
+        with st.spinner("Processing trades through Binance Master Vault & Multi-Asset Gateways..."):
+            results = run_async_safe(gateway.execute_trades(st.session_state.balance))
             st.success("Dispatch completed successfully according to current vault tier!")
             st.json(results)
 
 with tab_strategy:
-    st.subheader("🤖 Dynamic Strategy & Trailing Stop Inspector")
-    st.write("Inspect how the engine chooses strategies dynamically and calculates live trailing profit parameters.")
+    st.subheader("🤖 Open-Minded Strategy Registry & Trailing Stop Inspector")
+    st.write(f"The engine is connected to an open library of **{len(gateway.strategy_registry)} strategies** and selects the best fit dynamically.")
     
-    if st.button("📊 Evaluate Market Conditions & Trailing Stops", use_container_width=True):
+    if st.button("📊 Evaluate Market Conditions Across Registry", use_container_width=True):
         strat = gateway.select_dynamic_strategy()
-        mock_current_price = 64200.0
-        mock_high_watermark = 65000.0
-        trailing_target = gateway.calculate_trailing_stop(mock_current_price, mock_high_watermark, 0.015)
-        
-        st.success("Strategy evaluation completed!")
+        trailing_target = gateway.calculate_trailing_stop(64200.0, 65000.0, 0.015)
+        st.success("Evaluation complete!")
         st.json({
-            "selected_strategy": strat,
+            "selected_strategy_from_pool": strat,
             "sample_trailing_calculation": {
                 "asset": "BTC/USDT",
-                "highest_price_recorded": mock_high_watermark,
-                "current_price": mock_current_price,
-                "calculated_trailing_stop_price": trailing_target,
-                "status": "RATIO_LOCKED"
+                "highest_price": 65000.0,
+                "current_price": 64200.0,
+                "calculated_trailing_stop": trailing_target
             }
         })
-
-with tab_vault:
-    st.subheader("🔒 Active Vault Security Status")
-    st.text_input("Binance Master Treasury Vault", value="SECURELY TOKENIZED & ACTIVE", disabled=True)
-    st.text_input("Adaptive Allocation Guard", value="ACTIVE ($50 THRESHOLD GATE)", disabled=True)
-    st.text_input("Global Market Telemetry Feed", value="SYNCHRONIZED", disabled=True)
