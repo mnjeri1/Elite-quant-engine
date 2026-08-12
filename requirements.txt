@@ -3,5 +3,6 @@ pandas
 numpy
 ccxt
 alpaca-py
+aiosqlite
 aiohttp
 cryptography
