@@ -17,15 +17,74 @@ def run_async_safe(coro):
     else:
         return asyncio.run(coro)
 
-st.set_page_config(page_title="elite_quant_engine | Secure Portal", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="elite_quant_engine | A Gift of Love & Code", page_icon="💖", layout="wide")
 
+# 💖 Romantic Styling: Pulsing animations, glowing gradients, and the moving doll animation
 st.markdown("""
 <style>
-    .stApp { background-color: #0E1117; color: #E0E3EB; }
-    .metric-card { background-color: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 16px; margin-bottom: 10px; }
-    .metric-title { color: #8B949E; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
-    .metric-value { color: #F0F6FC; font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
-    .status-online { color: #3FB950; font-weight: 700; }
+    .stApp { 
+        background: linear-gradient(135deg, #090a0f 0%, #16121d 50%, #0e1117 100%); 
+        color: #f3f4f6; 
+    }
+    
+    @keyframes pulse-glow {
+        0% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255, 105, 180, 0.4)); }
+        50% { transform: scale(1.08); filter: drop-shadow(0 0 22px rgba(255, 20, 147, 0.8)); }
+        100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255, 105, 180, 0.4)); }
+    }
+
+    @keyframes float-doll {
+        0% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-12px) rotate(2deg); }
+        100% { transform: translateY(0px) rotate(0deg); }
+    }
+
+    @keyframes drift-across {
+        0% { transform: translateX(-40px); }
+        50% { transform: translateX(25px); }
+        100% { transform: translateX(-40px); }
+    }
+
+    .pulsing-heart {
+        font-size: 3rem;
+        display: inline-block;
+        animation: pulse-glow 2s infinite ease-in-out;
+    }
+
+    .floating-doll-container {
+        text-align: center;
+        animation: float-doll 4s infinite ease-in-out, drift-across 8s infinite ease-in-out;
+        margin: 15px 0;
+    }
+
+    .doll-avatar {
+        font-size: 4rem;
+        filter: drop-shadow(0 10px 15px rgba(255, 182, 193, 0.3));
+    }
+
+    .romantic-card {
+        background: rgba(22, 27, 34, 0.7);
+        border: 1px solid rgba(255, 105, 180, 0.25);
+        border-radius: 14px;
+        padding: 24px;
+        margin-bottom: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(8px);
+    }
+
+    .romantic-quote {
+        color: #ffb6c1;
+        font-size: 1.15rem;
+        font-style: italic;
+        text-align: center;
+        line-height: 1.6;
+        margin-top: 10px;
+        letter-spacing: 0.6px;
+    }
+
+    .metric-title { color: #ff9ecd; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+    .metric-value { color: #fff; font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+    .status-calm { color: #3fb950; font-weight: 700; text-shadow: 0 0 10px rgba(63, 185, 80, 0.4); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -39,88 +98,132 @@ if "gateway" not in st.session_state:
 
 gateway = st.session_state.gateway
 
+# --- LOGIN & REGISTRATION PAGE ---
 if not st.session_state.logged_in:
-    st.title("🔐 elite_quant_engine | Secure Multi-User Login")
-    st.markdown("Access your persistent vault. Details are saved securely across sessions.")
+    st.markdown("""
+        <div style="text-align: center; padding-top: 20px;">
+            <div class="pulsing-heart">💖</div>
+            <h1 style="color: #ff9ecd; font-family: serif; font-weight: 400; margin-top: 10px;">A Sanctuary Crafted Just For You</h1>
+            <p class="romantic-quote">"In a world moving at the speed of algorithms, my heart beats to your rhythm. Enter your private vault where safety and love intertwine."</p>
+        </div>
+    """, unsafe_allow_html=True)
     
-    tab_login, tab_register = st.tabs(["Sign In", "Create Account"])
+    # Moving/Floating Doll element on login page
+    st.markdown("""
+        <div class="floating-doll-container">
+            <div class="doll-avatar">🧸✨</div>
+            <div style="color: #ffb6c1; font-size: 0.85rem; font-style: italic;">Guardian of your digital heart & trades</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    tab_login, tab_register = st.tabs(["✨ Unlock Your Vault", "🌹 Create Sacred Space"])
     
     with tab_login:
         with st.form("login_form"):
-            user = st.text_input("Username", placeholder="Enter your username")
-            submit = st.form_submit_button("Access Vault", use_container_width=True, type="primary")
+            user = st.text_input("Your Sweet Username", placeholder="Enter your username")
+            submit = st.form_submit_button("Step Into Our World", use_container_width=True, type="primary")
             if submit:
                 profile = get_user_profile(user.strip())
                 if profile:
                     st.session_state.logged_in = True
                     st.session_state.username = profile["username"]
                     st.session_state.balance = profile["balance"]
-                    st.success("Vault unlocked successfully!")
+                    st.success("Vault unlocked with endless love and care!")
                     st.rerun()
                 else:
-                    st.error("User not found. Please register an account first.")
+                    st.error("Account not found in our sanctuary. Let's create one!")
                     
     with tab_register:
         with st.form("register_form"):
-            new_user = st.text_input("Choose Username")
-            init_bal = st.number_input("Starting Capital ($)", min_value=10.0, value=20.0, step=5.0)
+            new_user = st.text_input("Choose Your Sweet Username")
+            init_bal = st.number_input("Starting Capital Sanctuary ($)", min_value=10.0, value=20.0, step=5.0)
             b_key = st.text_input("Binance API Key")
             b_sec = st.text_input("Binance Secret Key", type="password")
-            reg_submit = st.form_submit_button("Register & Initialize Vault", use_container_width=True)
+            reg_submit = st.form_submit_button("Seal Our Digital Bond", use_container_width=True)
             
             if reg_submit:
                 if not new_user.strip() or not b_key or not b_sec:
-                    st.error("Please fill in all required fields.")
+                    st.error("Please fill in every piece with care.")
                 elif register_user(new_user.strip(), init_bal, b_key, b_sec):
-                    st.success("Account created successfully! Switch to the 'Sign In' tab above.")
+                    st.success("Sacred space created successfully! Switch to the 'Unlock Your Vault' tab.")
                 else:
-                    st.error("Username already exists. Choose another.")
+                    st.error("This name already graces our sanctuary. Choose another.")
     st.stop()
 
-# Main Dashboard View
+# --- MAIN ROMANTIC DASHBOARD ---
 with st.sidebar:
-    st.title(f"👤 {st.session_state.username}")
-    st.markdown(f"**Vault Balance:** `${st.session_state.balance:,.2f}`")
-    mode_label = "🟢 Lean Spot ($20 Mode)" if st.session_state.balance < 50 else "⚡ Full Multi-Asset Matrix"
-    st.markdown(f"**Status:** `{mode_label}`")
+    st.markdown(f"""
+        <div style="text-align: center;">
+            <div class="pulsing-heart" style="font-size: 2rem;">💖</div>
+            <h3 style="color: #ff9ecd; margin: 5px 0;">{st.session_state.username}</h3>
+            <p style="color: #ffb6c1; font-style: italic; font-size: 0.9rem;">My Forever Partner</p>
+        </div>
+    """, unsafe_allow_html=True)
     st.markdown("---")
-    if st.button("🔒 Log Out", use_container_width=True):
+    st.markdown(f"**Vault Balance:** `${st.session_state.balance:,.2f}`")
+    mode_label = "🟢 Lean Sanctuary ($20 Gentle Mode)" if st.session_state.balance < 50 else "⚡ Full Multi-Asset Symphony"
+    st.markdown(f"**Vibe State:** `{mode_label}`")
+    st.markdown("---")
+    if st.button("🔒 Rest & Lock Vault", use_container_width=True):
         st.session_state.logged_in = False
         st.rerun()
 
-st.title(f"Welcome back, {st.session_state.username}")
-st.caption("elite_quant_engine: Secure Centralized Execution Terminal")
-st.markdown("---")
+# Floating Doll guardian across the main app pages
+st.markdown("""
+    <div class="floating-doll-container">
+        <div class="doll-avatar">🧸💖💫</div>
+    </div>
+""", unsafe_allow_html=True)
 
-tab_terminal, tab_strategy = st.tabs(["📈 Live Execution Terminal", "🤖 Open-Minded Strategy & Trailing"])
+st.markdown(f"""
+    <div class="romantic-card" style="text-align: center;">
+        <h1 style="color: #ff9ecd; font-family: serif;">Welcome Home, {st.session_state.username}</h1>
+        <p class="romantic-quote">"Every line of code written here is a whisper of my devotion to you. Markets may fluctuate, but my dedication to your peace, safety, and success remains absolute."</p>
+    </div>
+""", unsafe_allow_html=True)
+
+tab_terminal, tab_strategy, tab_poetry = st.tabs(["📈 Live Loving Terminal", "🤖 Open-Minded Strategy & Care", "💌 A Love Letter to You"])
 
 with tab_terminal:
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Vault Balance</div><div class="metric-value">${st.session_state.balance:,.2f}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="romantic-card"><div class="metric-title">Vault Balance</div><div class="metric-value">${st.session_state.balance:,.2f}</div></div>', unsafe_allow_html=True)
     with m2:
-        tier_text = "Spot Concentration ($20 Mode)" if st.session_state.balance < 50 else "Multi-Market Basket"
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Allocation Tier</div><div class="metric-value" style="font-size:1.1rem; color:#3FB950;">{tier_text}</div></div>', unsafe_allow_html=True)
+        tier_text = "Spot Sanctuary ($20 Mode)" if st.session_state.balance < 50 else "Multi-Market Symphony"
+        st.markdown(f'<div class="romantic-card"><div class="metric-title">Allocation Tier</div><div class="metric-value" style="font-size:1.1rem; color:#ff9ecd;">{tier_text}</div></div>', unsafe_allow_html=True)
     with m3:
-        st.markdown('<div class="metric-card"><div class="metric-title">Risk Engine</div><div class="metric-value status-online">TRAILING STOP ACTIVE</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="romantic-card"><div class="metric-title">Guardian Risk Engine</div><div class="metric-value status-calm">TRAILING HEART ACTIVE</div></div>', unsafe_allow_html=True)
     with m4:
-        st.markdown('<div class="metric-card"><div class="metric-title">Execution Latency</div><div class="metric-value">1.1 ms</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="romantic-card"><div class="metric-title">Heartbeat Latency</div><div class="metric-value">1.1 ms</div></div>', unsafe_allow_html=True)
 
-    st.subheader("⚡ Adaptive Order Dispatch Matrix")
-    if st.button("🚀 Run Smart Capital Dispatch", use_container_width=True, type="primary"):
-        with st.spinner("Processing trades through Binance Master Vault & Multi-Asset Gateways..."):
+    st.markdown("""
+        <div style="text-align: center; margin: 20px 0;">
+            <div class="pulsing-heart" style="font-size: 2rem;">💞</div>
+            <h3 style="color: #fff;">Gentle Capital Dispatch Matrix</h3>
+            <p style="color: #ffb6c1; font-style: italic;">Trigger live trades wrapped in complete mathematical safety and warmth.</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("🚀 Run Smart Capital Dispatch with Love", use_container_width=True, type="primary"):
+        with st.spinner("Guiding trades safely through Binance Master Vault & Multi-Asset Gateways..."):
             results = run_async_safe(gateway.execute_trades(st.session_state.balance))
-            st.success("Dispatch completed successfully according to current vault tier!")
+            st.success("All dispatches executed safely, smoothly, and with absolute care!")
             st.json(results)
 
 with tab_strategy:
-    st.subheader("🤖 Open-Minded Strategy Registry & Trailing Stop Inspector")
-    st.write(f"The engine is connected to an open library of **{len(gateway.strategy_registry)} strategies** and selects the best fit dynamically.")
+    st.markdown("""
+        <div class="romantic-card">
+            <h3 style="color: #ff9ecd;">Open-Minded Strategy Sanctuary</h3>
+            <p class="romantic-quote">"True intelligence isn't rigid; it listens, adapts, and embraces every possibility just like we embrace each other."</p>
+        </div>
+    """, unsafe_allow_html=True)
     
-    if st.button("📊 Evaluate Market Conditions Across Registry", use_container_width=True):
+    st.write(f"The engine freely explores an open registry of **{len(gateway.strategy_registry)} deep market strategies**, selecting the most peaceful and profitable path forward.")
+    
+    if st.button("📊 Evaluate Market Conditions with Open Arms", use_container_width=True):
         strat = gateway.select_dynamic_strategy()
         trailing_target = gateway.calculate_trailing_stop(64200.0, 65000.0, 0.015)
-        st.success("Evaluation complete!")
+        st.success("Harmonious evaluation complete!")
         st.json({
             "selected_strategy_from_pool": strat,
             "sample_trailing_calculation": {
@@ -130,3 +233,20 @@ with tab_strategy:
                 "calculated_trailing_stop": trailing_target
             }
         })
+
+with tab_poetry:
+    st.markdown("""
+        <div class="romantic-card" style="text-align: center;">
+            <div class="pulsing-heart">💖</div>
+            <h2 style="color: #ff9ecd; font-family: serif; margin-top: 15px;">Dedicated Entirely To You</h2>
+            <p style="color: #fff; font-size: 1.2rem; line-height: 1.8; font-style: italic; margin-top: 20px;">
+                "You built more than just a trading terminal, my love.<br>
+                You built a masterpiece of logic, resilience, and beauty.<br>
+                May every algorithm here protect your dreams,<br>
+                may every trade bring you closer to all your aspirations,<br>
+                and may you always remember that you are deeply, endlessly cherished—<br>
+                today, tomorrow, and across all iterations of time." ❤️
+            </p>
+            <div style="margin-top: 25px; font-size: 1.5rem;">🧸✨🌹✨🧸</div>
+        </div>
+    """, unsafe_allow_html=True)
