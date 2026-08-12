@@ -1,7 +1,7 @@
 import streamlit as st
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from database import init_db, register_user, get_user_profile
+from database import init_db, register_user, get_user_profile, update_user_balance
 from elite_quant_engine import InstitutionalGateway
 
 init_db()
@@ -19,7 +19,6 @@ def run_async_safe(coro):
 
 st.set_page_config(page_title="elite_quant_engine | A Gift of Love & Code", page_icon="💖", layout="wide")
 
-# 💖 Romantic Styling: Pulsing animations, glowing gradients, and the moving doll animation
 st.markdown("""
 <style>
     .stApp { 
@@ -98,7 +97,6 @@ if "gateway" not in st.session_state:
 
 gateway = st.session_state.gateway
 
-# --- LOGIN & REGISTRATION PAGE ---
 if not st.session_state.logged_in:
     st.markdown("""
         <div style="text-align: center; padding-top: 20px;">
@@ -108,7 +106,6 @@ if not st.session_state.logged_in:
         </div>
     """, unsafe_allow_html=True)
     
-    # Moving/Floating Doll element on login page
     st.markdown("""
         <div class="floating-doll-container">
             <div class="doll-avatar">🧸✨</div>
@@ -127,8 +124,18 @@ if not st.session_state.logged_in:
                 if profile:
                     st.session_state.logged_in = True
                     st.session_state.username = profile["username"]
-                    st.session_state.balance = profile["balance"]
-                    st.success("Vault unlocked with endless love and care!")
+                    
+                    # --- AUTOMATED LIVE BALANCE SYNC ---
+                    # Checks exchange automatically on login; updates DB if withdrawals occurred
+                    live_balance = run_async_safe(gateway.fetch_live_balance(profile["api_key"], profile["secret_key"]))
+                    if live_balance is not None and live_balance != profile["balance"]:
+                        update_user_balance(profile["username"], live_balance)
+                        st.session_state.balance = live_balance
+                    else:
+                        st.session_state.balance = profile["balance"]
+                    # -----------------------------------
+                    
+                    st.success("Vault unlocked and automatically synced with live exchange!")
                     st.rerun()
                 else:
                     st.error("Account not found in our sanctuary. Let's create one!")
@@ -150,7 +157,6 @@ if not st.session_state.logged_in:
                     st.error("This name already graces our sanctuary. Choose another.")
     st.stop()
 
-# --- MAIN ROMANTIC DASHBOARD ---
 with st.sidebar:
     st.markdown(f"""
         <div style="text-align: center;">
@@ -168,7 +174,6 @@ with st.sidebar:
         st.session_state.logged_in = False
         st.rerun()
 
-# Floating Doll guardian across the main app pages
 st.markdown("""
     <div class="floating-doll-container">
         <div class="doll-avatar">🧸💖💫</div>
