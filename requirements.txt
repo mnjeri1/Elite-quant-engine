@@ -5,9 +5,6 @@ nest-asyncio
 cryptography
 aiohttp
 pytz
-ib_insync
-alpaca-py
-psycopg2-binary
 pandas
 numpy
 requests
