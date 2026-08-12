@@ -25,7 +25,7 @@ def main():
     print("✅ All pre-flight checks passed successfully!")
     print(f"🚀 Launching Streamlit interface from {target_script}...")
     
-    # Programmatically invoke streamlit run with nest_asyncio support
+    # Programmatically invoke streamlit run with headless settings
     sys.argv = ["streamlit", "run", target_script, "--server.headless=true"]
     sys.exit(st_cli.main())
 
