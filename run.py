@@ -3,7 +3,7 @@ import sys
 from streamlit.web import cli as st_cli
 
 def main():
-    print("⚡ Initializing Elite Quant Engine Pre-Flight Checks...")
+    print("⚡ Initializing Elite Quant Engine Single-Vault Pre-Flight Checks...")
     
     # 1. Verify Python Version
     if sys.version_info < (3, 8):
@@ -23,7 +23,7 @@ def main():
         sys.exit(1)
         
     print("✅ All pre-flight checks passed successfully!")
-    print(f"🚀 Launching Streamlit interface from {target_script}...")
+    print(f"🚀 Launching Streamlit single-vault interface from {target_script}...")
     
     # Programmatically invoke streamlit run with headless settings
     sys.argv = ["streamlit", "run", target_script, "--server.headless=true"]
