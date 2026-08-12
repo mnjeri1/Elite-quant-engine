@@ -106,7 +106,7 @@ class InstitutionalGateway:
                 {"symbol": "EUR_USD", "asset_class": "FOREX", "market_type": "FX", "side": "BUY", "size_units": 1000, "execution_note": "OANDA Cloud Forex Gateway"}
             ]
 
-    async def execute_trades(self, account_balance: float, api_key: str, secret_key: str, oanda_token: str = "", oanda_account_id: str = "") -> List[Dict[str, Any]]:
+    async def execute_trades(self, account_balance: float, binance_key: str, binance_sec: str, alpaca_key: str = "", alpaca_sec: str = "", oanda_token: str = "", oanda_account_id: str = "") -> List[Dict[str, Any]]:
         results = []
         orders_to_run = self.process_lean_or_matrix_allocation(account_balance)
 
@@ -118,14 +118,16 @@ class InstitutionalGateway:
 
             try:
                 if asset_class == "CRYPTO":
-                    exchange = ccxt_async.binance({'apiKey': api_key, 'secret': secret_key, 'enableRateLimit': True})
+                    exchange = ccxt_async.binance({'apiKey': binance_key, 'secret': binance_sec, 'enableRateLimit': True})
                     res = await exchange.create_order(order["symbol"], 'market', order["side"].lower(), order["size_units"])
                     await exchange.close()
                     results.append({"symbol": order["symbol"], "status": "SUCCESS (Binance Live Production)", "response": res})
 
                 elif asset_class == "STOCK":
                     if not ALPACA_AVAILABLE: raise ImportError("alpaca-py package missing.")
-                    client = TradingClient(api_key, secret_key, paper=False)
+                    if not alpaca_key or not alpaca_sec:
+                        raise ValueError("Alpaca credentials missing for stock execution.")
+                    client = TradingClient(alpaca_key, alpaca_sec, paper=False)
                     req = MarketOrderRequest(symbol=order["symbol"], qty=order["size_units"], side=OrderSide.BUY, time_in_force=TimeInForce.DAY)
                     res = client.submit_order(req)
                     results.append({"symbol": order["symbol"], "status": "SUCCESS (Alpaca Stock Live Production)", "order_id": str(res.id)})
