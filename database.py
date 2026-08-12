@@ -60,3 +60,12 @@ def get_user_profile(username: str):
             "secret_key": cipher.decrypt(row[3].encode()).decode()
         }
     return None
+
+def update_user_balance(username: str, new_balance: float):
+    """Automatically updates the user's vault balance in SQLite after an exchange sync."""
+    init_db()
+    conn = sqlite3.connect("elite_quant.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET balance = ? WHERE username = ?", (new_balance, username))
+    conn.commit()
+    conn.close()
