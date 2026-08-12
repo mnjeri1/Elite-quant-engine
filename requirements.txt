@@ -1,10 +1,7 @@
 streamlit
-ccxt
-aiosqlite
-nest-asyncio
-cryptography
-aiohttp
-pytz
 pandas
 numpy
-requests
+ccxt
+alpaca-py
+aiohttp
+cryptography
