@@ -1,8 +1,12 @@
 import os
 import streamlit as st
 import asyncio
+import nest_asyncio
 from datetime import datetime
 from elite_quant_engine import InstitutionalGateway
+
+# Apply nest_asyncio to support asynchronous calls inside Streamlit loops
+nest_asyncio.apply()
 
 st.set_page_config(
     page_title="elite_quant_engine | Multi-Market Terminal",
@@ -138,7 +142,8 @@ with st.sidebar:
         st.markdown(f"**{gateway_node}**: {badge} `{latency}ms`")
         
     st.markdown("---")
-    if st.button("🔒 Lock Session / Log Out", use_control_width=True if hasattr(st, "use_control_width") else False, use_container_width=True):
+    # Bug Fix: removed invalid argument 'use_control_width'
+    if st.button("🔒 Lock Session / Log Out", use_container_width=True):
         st.session_state.customer_logged_in = False
         st.rerun()
 
