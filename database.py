@@ -21,6 +21,8 @@ async def init_db():
                 balance REAL NOT NULL,
                 enc_api_key TEXT NOT NULL,
                 enc_secret_key TEXT NOT NULL,
+                enc_alpaca_key TEXT,
+                enc_alpaca_sec TEXT,
                 enc_oanda_token TEXT,
                 enc_oanda_account TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -28,18 +30,20 @@ async def init_db():
         """)
         await db.commit()
 
-async def register_user(username: str, balance: float, api_key: str, secret_key: str, oanda_token: str = "", oanda_account: str = ""):
+async def register_user(username: str, balance: float, api_key: str, secret_key: str, alpaca_key: str = "", alpaca_sec: str = "", oanda_token: str = "", oanda_account: str = ""):
     await init_db()
     enc_api = cipher.encrypt(api_key.encode()).decode()
     enc_sec = cipher.encrypt(secret_key.encode()).decode()
+    enc_a_key = cipher.encrypt(alpaca_key.encode()).decode() if alpaca_key else ""
+    enc_a_sec = cipher.encrypt(alpaca_sec.encode()).decode() if alpaca_sec else ""
     enc_o_token = cipher.encrypt(oanda_token.encode()).decode() if oanda_token else ""
     enc_o_acc = cipher.encrypt(oanda_account.encode()).decode() if oanda_account else ""
     try:
         async with aiosqlite.connect(DB_NAME) as db:
             await db.execute("""
-                INSERT INTO users (username, balance, enc_api_key, enc_secret_key, enc_oanda_token, enc_oanda_account) 
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (username, balance, enc_api, enc_sec, enc_o_token, enc_o_acc))
+                INSERT INTO users (username, balance, enc_api_key, enc_secret_key, enc_alpaca_key, enc_alpaca_sec, enc_oanda_token, enc_oanda_account) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (username, balance, enc_api, enc_sec, enc_a_key, enc_a_sec, enc_o_token, enc_o_acc))
             await db.commit()
         return True
     except Exception:
@@ -49,7 +53,7 @@ async def get_user_profile(username: str):
     await init_db()
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("""
-            SELECT username, balance, enc_api_key, enc_secret_key, enc_oanda_token, enc_oanda_account 
+            SELECT username, balance, enc_api_key, enc_secret_key, enc_alpaca_key, enc_alpaca_sec, enc_oanda_token, enc_oanda_account 
             FROM users WHERE username = ?
         """, (username,)) as cursor:
             row = await cursor.fetchone()
@@ -59,8 +63,10 @@ async def get_user_profile(username: str):
                     "balance": row[1],
                     "api_key": cipher.decrypt(row[2].encode()).decode(),
                     "secret_key": cipher.decrypt(row[3].encode()).decode(),
-                    "oanda_token": cipher.decrypt(row[4].encode()).decode() if row[4] else "",
-                    "oanda_account": cipher.decrypt(row[5].encode()).decode() if row[5] else ""
+                    "alpaca_key": cipher.decrypt(row[4].encode()).decode() if row[4] else "",
+                    "alpaca_sec": cipher.decrypt(row[5].encode()).decode() if row[5] else "",
+                    "oanda_token": cipher.decrypt(row[6].encode()).decode() if row[6] else "",
+                    "oanda_account": cipher.decrypt(row[7].encode()).decode() if row[7] else ""
                 }
     return None
 
