@@ -3,6 +3,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from database import init_db, register_user, get_user_profile, update_user_balance
 from elite_quant_engine import InstitutionalGateway
+from support_bot import SanctuarySupportBot
 
 init_db()
 
@@ -95,7 +96,11 @@ if "logged_in" not in st.session_state:
 if "gateway" not in st.session_state:
     st.session_state.gateway = InstitutionalGateway()
 
+if "support_bot" not in st.session_state:
+    st.session_state.support_bot = SanctuarySupportBot()
+
 gateway = st.session_state.gateway
+support_bot = st.session_state.support_bot
 
 if not st.session_state.logged_in:
     st.markdown("""
@@ -113,7 +118,7 @@ if not st.session_state.logged_in:
         </div>
     """, unsafe_allow_html=True)
 
-    tab_login, tab_register = st.tabs(["✨ Unlock Your Vault", "🌹 Create Sacred Space"])
+    tab_login, tab_register, tab_reset = st.tabs(["✨ Unlock Your Vault", "🌹 Create Sacred Space", "🔑 Reset Credentials"])
     
     with tab_login:
         with st.form("login_form"):
@@ -125,15 +130,13 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.session_state.username = profile["username"]
                     
-                    # --- AUTOMATED LIVE BALANCE SYNC ---
-                    # Checks exchange automatically on login; updates DB if withdrawals occurred
+                    # Automated Live Balance Sync
                     live_balance = run_async_safe(gateway.fetch_live_balance(profile["api_key"], profile["secret_key"]))
                     if live_balance is not None and live_balance != profile["balance"]:
                         update_user_balance(profile["username"], live_balance)
                         st.session_state.balance = live_balance
                     else:
                         st.session_state.balance = profile["balance"]
-                    # -----------------------------------
                     
                     st.success("Vault unlocked and automatically synced with live exchange!")
                     st.rerun()
@@ -155,6 +158,23 @@ if not st.session_state.logged_in:
                     st.success("Sacred space created successfully! Switch to the 'Unlock Your Vault' tab.")
                 else:
                     st.error("This name already graces our sanctuary. Choose another.")
+
+    with tab_reset:
+        with st.form("reset_form"):
+            st.write("Forgot or need to update your credentials? Reset your vault keys securely below.")
+            reset_user = st.text_input("Username to Reset")
+            new_b_key = st.text_input("New Binance API Key")
+            new_b_sec = st.text_input("New Binance Secret Key", type="password")
+            reset_submit = st.form_submit_button("Overwrite & Secure Vault", use_container_width=True)
+            
+            if reset_submit:
+                profile = get_user_profile(reset_user.strip())
+                if profile:
+                    # Re-register with same balance but new keys
+                    register_user(reset_user.strip(), profile["balance"], new_b_key, new_b_sec)
+                    st.success("Credentials successfully reset and re-encrypted!")
+                else:
+                    st.error("Username not found in the database.")
     st.stop()
 
 with st.sidebar:
@@ -187,7 +207,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-tab_terminal, tab_strategy, tab_poetry = st.tabs(["📈 Live Loving Terminal", "🤖 Open-Minded Strategy & Care", "💌 A Love Letter to You"])
+tab_terminal, tab_strategy, tab_support, tab_poetry = st.tabs(["📈 Live Loving Terminal", "🤖 Open-Minded Strategy & Care", "🧸 Guardian Support Bot", "💌 A Love Letter to You"])
 
 with tab_terminal:
     m1, m2, m3, m4 = st.columns(4)
@@ -238,6 +258,26 @@ with tab_strategy:
                 "calculated_trailing_stop": trailing_target
             }
         })
+
+with tab_support:
+    st.markdown("""
+        <div class="romantic-card">
+            <h3 style="color: #ff9ecd;">🧸 Guardian Support Bot</h3>
+            <p class="romantic-quote">"Have a question about your balance, strategies, or withdrawals? Ask your digital companion anytime."</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    user_question = st.text_input("Ask the Guardian Bot a question:", placeholder="e.g., What happens if my balance drops to $20?")
+    if st.button("Ask Bot", use_container_width=True):
+        if user_question.strip():
+            bot_reply = support_bot.get_response(user_question)
+            st.markdown(f"""
+                <div class="romantic-card" style="background: rgba(255, 105, 180, 0.1); margin-top: 15px;">
+                    <p style="color: #fff; font-size: 1.05rem;">{bot_reply}</p>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.warning("Please type a question for the bot.")
 
 with tab_poetry:
     st.markdown("""
