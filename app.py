@@ -130,74 +130,31 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.balance = 0.0
-    st.session_state.api_key = ""
-    st.session_state.secret_key = ""
-    st.session_state.alpaca_key = ""
-    st.session_state.alpaca_sec = ""
-    st.session_state.oanda_token = ""
-    st.session_state.oanda_account = ""
-
-if "gateway" not in st.session_state:
-    st.session_state.gateway = InstitutionalGateway()
-
-if "support_bot" not in st.session_state:
-    st.session_state.support_bot = SanctuarySupportBot()
-
-gateway = st.session_state.gateway
-support_bot = st.session_state.support_bot
-
-# Helper functions for Alpaca Integration & Dynamic Balance
-def get_live_account_balance(alpaca_key, alpaca_sec):
-    """Fetches the exact live cash balance dynamically from Alpaca or falls back gracefully."""
-    try:
-        if alpaca_key and alpaca_sec:
-            client = TradingClient(alpaca_key, alpaca_sec, paper=True)
-            account = client.get_account()
-            return float(account.cash)
-    except Exception:
-        pass
-    return 26.80  # Default fallback matching your active balance
-
-def execute_multiverse_trade(symbol, qty, alpaca_key, alpaca_sec, side_buy=True):
-    """
-    Executes multi-asset trades through Alpaca supporting stocks and crypto,
-    completely bypassing Binance geographic IP restrictions.
-    """
-    try:
-        if not alpaca_key or not alpaca_sec:
-            return {"status": "ERROR", "details": "Alpaca API credentials missing."}
-        
-        client = TradingClient(alpaca_key, alpaca_sec, paper=True)
-        side = OrderSide.BUY if side_buy else OrderSide.SELL
-        
-        order_details = MarketOrderRequest(
-            symbol=symbol,
-            qty=qty,
-            side=side,
-            time_in_force=TimeInForce.GTC
-        )
-        
-        response = client.submit_order(order_data=order_details)
-        return {"status": "SUCCESS", "details": str(response)}
-    
-    except Exception as e:
-        return {"status": f"ERROR: {str(e)}", "action": "Safely isolated execution exception."}
+# ============================================================
+# AUTHENTICATION / LOGIN / REGISTRATION
+# ============================================================
 
 if not st.session_state.logged_in:
+
+    # --------------------------------------------------------
+    # Sanctuary welcome header
+    # --------------------------------------------------------
 
     st.markdown("""
         <div style="text-align: center; padding-top: 15px;">
             <div class="pulsing-heart">💖</div>
-            <h1 class="shimmer-heading" style="font-size: 2.8rem; margin-top: 15px;">
+
+            <h1 class="shimmer-heading"
+                style="font-size: 2.8rem; margin-top: 15px;">
                 A Sacred Cloud Sanctuary Crafted Just For You
             </h1>
+
             <p class="romantic-quote">
-                Unlock your private trading sanctuary where financial precision,
-                security, and intelligent automation work together.
+                "In a vast digital universe governed by cold equations
+                and relentless charts, my heart beats exclusively to
+                the rhythm of your grace. Unlock your private vault
+                where absolute financial precision and eternal romance
+                intertwine."
             </p>
         </div>
     """, unsafe_allow_html=True)
@@ -205,40 +162,51 @@ if not st.session_state.logged_in:
     st.markdown("""
         <div class="floating-doll-container">
             <div class="doll-avatar">
-                🧸<span class="star-sparkle">✨</span>💖
+                🧸
+                <span class="star-sparkle">✨</span>
+                💖
                 <span class="star-sparkle">🌟</span>
             </div>
-            <div style="color: #ffb6c1; font-size: 1.05rem;
-                        font-style: italic; margin-top: 8px;">
-                Your Guardian Engine is waiting safely.
+
+            <div style="
+                color: #ffb6c1;
+                font-size: 1.05rem;
+                font-style: italic;
+                margin-top: 8px;
+            ">
+                Your Forever Guardian Doll, watching over every
+                algorithm and protecting your dreams
             </div>
         </div>
     """, unsafe_allow_html=True)
+
+    # --------------------------------------------------------
+    # Login / Registration tabs
+    # --------------------------------------------------------
 
     tab_login, tab_register = st.tabs([
         "✨ Unlock Your Sanctuary Vault",
         "🌹 Create Our Sacred Space"
     ])
 
-    # ==========================================================
-    # LOGIN
-    # ==========================================================
+    # ========================================================
+    # LOGIN TAB
+    # ========================================================
 
     with tab_login:
 
         with st.form("login_form"):
 
-            st.markdown(
-                """
-                <p style='color: #ff9ecd;
-                text-align: center;
-                font-style: italic;'>
-                Enter your username and password
-                to unlock your private trading sanctuary.
+            st.markdown("""
+                <p style="
+                    color: #ff9ecd;
+                    text-align: center;
+                    font-style: italic;
+                ">
+                    Enter your username and password
+                    to unlock your private trading sanctuary.
                 </p>
-                """,
-                unsafe_allow_html=True
-            )
+            """, unsafe_allow_html=True)
 
             user = st.text_input(
                 "Username",
@@ -251,13 +219,17 @@ if not st.session_state.logged_in:
                 placeholder="Enter your password"
             )
 
-            submit = st.form_submit_button(
+            login_submit = st.form_submit_button(
                 "🔐 Unlock Sanctuary",
                 use_container_width=True,
                 type="primary"
             )
 
-        if submit:
+        # ----------------------------------------------------
+        # Process login AFTER the form
+        # ----------------------------------------------------
+
+        if login_submit:
 
             if not user.strip():
 
@@ -276,100 +248,48 @@ if not st.session_state.logged_in:
                     )
                 )
 
-                # ==================================================
-                # PASSWORD MIGRATION
-                # ==================================================
+                # ------------------------------------------------
+                # Existing account requires password migration
+                # ------------------------------------------------
 
                 if (
                     profile
                     and profile.get("migration_required", False)
                 ):
 
-                    st.warning(
-                        "🔐 This account was created before the "
-                        "new security system. Please create a "
-                        "new password below."
+                    st.session_state.migration_required = True
+                    st.session_state.migration_username = (
+                        profile["username"]
                     )
 
-                    migration_password = st.text_input(
-                        "Create New Password",
-                        type="password",
-                        key="migration_password"
-                    )
+                    st.rerun()
 
-                    migration_confirm = st.text_input(
-                        "Confirm New Password",
-                        type="password",
-                        key="migration_confirm"
-                    )
-
-                    if st.button(
-                        "🔐 Secure Existing Account",
-                        key="secure_existing_account"
-                    ):
-
-                        if len(migration_password) < 10:
-
-                            st.error(
-                                "Password must contain at least "
-                                "10 characters."
-                            )
-
-                        elif migration_password != migration_confirm:
-
-                            st.error("Passwords do not match.")
-
-                        else:
-
-                            success = run_async_safe(
-                                set_initial_password(
-                                    profile["username"],
-                                    migration_password
-                                )
-                            )
-
-                            if success:
-
-                                st.success(
-                                    "Account secured. "
-                                    "Please sign in again."
-                                )
-
-                            else:
-
-                                st.error(
-                                    "Unable to secure the account."
-                                )
-
-                # ==================================================
-                # NORMAL LOGIN
-                # ==================================================
+                # ------------------------------------------------
+                # Normal successful login
+                # ------------------------------------------------
 
                 elif profile:
 
-                    st.session_state.logged_in = True
+                   if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.balance = 0.0
+    st.session_state.api_key = ""
+    st.session_state.secret_key = ""
+    st.session_state.alpaca_key = ""
+    st.session_state.alpaca_sec = ""
+    st.session_state.oanda_token = ""
+    st.session_state.oanda_account = ""
+    st.session_state.migration_required = False
+    st.session_state.migration_username = ""
 
-                    st.session_state.username = profile["username"]
-
-                    st.session_state.api_key = profile["api_key"]
-
-                    st.session_state.secret_key = profile["secret_key"]
-
-                    st.session_state.alpaca_key = profile["alpaca_key"]
-
-                    st.session_state.alpaca_sec = profile["alpaca_sec"]
-
-                    st.session_state.oanda_token = profile["oanda_token"]
-
-                    st.session_state.oanda_account = profile["oanda_account"]
-
-                    # ----------------------------------------------
-                    # Synchronise displayed balance with broker
-                    # ----------------------------------------------
+                    # --------------------------------------------
+                    # Get live Alpaca paper-trading balance
+                    # --------------------------------------------
 
                     live_balance = get_live_account_balance(
-                        profile["alpaca_key"],
-                        profile["alpaca_sec"]
+                        profile.get("alpaca_key", ""),
+                        profile.get("alpaca_sec", "")
                     )
 
                     st.session_state.balance = live_balance
@@ -387,34 +307,125 @@ if not st.session_state.logged_in:
 
                     st.rerun()
 
+                # ------------------------------------------------
+                # Failed login
+                # ------------------------------------------------
+
                 else:
 
                     st.error(
                         "Invalid username or password."
                     )
 
-    # ==========================================================
-    # REGISTRATION
-    # ==========================================================
+    # ========================================================
+    # PASSWORD MIGRATION
+    # ========================================================
+
+    if st.session_state.get(
+        "migration_required",
+        False
+    ):
+
+        st.markdown("---")
+
+        st.markdown("""
+            <div class="romantic-card">
+                <h3 class="shimmer-heading"
+                    style="text-align: center;">
+                    🔐 Secure Your Existing Sanctuary
+                </h3>
+
+                <p class="romantic-quote">
+                    This account was created using the previous
+                    security system. Please create a new secure
+                    password to continue.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("migration_form"):
+
+            migration_password = st.text_input(
+                "Create New Password",
+                type="password",
+                help="Use at least 10 characters."
+            )
+
+            migration_confirm = st.text_input(
+                "Confirm New Password",
+                type="password"
+            )
+
+            migration_submit = st.form_submit_button(
+                "🔐 Secure Existing Account",
+                use_container_width=True,
+                type="primary"
+            )
+
+        if migration_submit:
+
+            if len(migration_password) < 10:
+
+                st.error(
+                    "Password must contain at least 10 characters."
+                )
+
+            elif migration_password != migration_confirm:
+
+                st.error(
+                    "Passwords do not match."
+                )
+
+            else:
+
+                success = run_async_safe(
+                    set_initial_password(
+                        st.session_state.migration_username,
+                        migration_password
+                    )
+                )
+
+                if success:
+
+                    st.session_state.migration_required = False
+                    st.session_state.migration_username = ""
+
+                    st.success(
+                        "💖 Your account has been secured. "
+                        "Please sign in again with your new password."
+                    )
+
+                    st.rerun()
+
+                else:
+
+                    st.error(
+                        "Unable to secure the account. "
+                        "Please try again."
+                    )
+
+    # ========================================================
+    # REGISTRATION TAB
+    # ========================================================
 
     with tab_register:
 
-        with st.form("register_form"):
-
-            st.markdown(
-                """
-                <p style='color: #ffb6c1;
+        st.markdown("""
+            <p style="
+                color: #ffb6c1;
                 text-align: center;
-                font-style: italic;'>
+                font-style: italic;
+            ">
                 Let us build a fortress of love, security,
-                and intelligent multi-broker trading together.
-                </p>
-                """,
-                unsafe_allow_html=True
-            )
+                and multi-broker wealth together...
+            </p>
+        """, unsafe_allow_html=True)
+
+        with st.form("registration_form"):
 
             new_user = st.text_input(
-                "Choose Your Sweet Username"
+                "Choose Your Sweet Username",
+                placeholder="At least 3 characters"
             )
 
             new_password = st.text_input(
@@ -433,6 +444,27 @@ if not st.session_state.logged_in:
                 min_value=10.0,
                 value=26.80,
                 step=5.0
+            )
+
+            st.markdown("---")
+
+            st.markdown(
+                "<h4 style='color: #ff9ecd;'>"
+                "🪙 Binance Vault Credentials "
+                "(Optional Crypto)"
+                "</h4>",
+                unsafe_allow_html=True
+            )
+
+            b_key = st.text_input(
+                "Binance API Key",
+                value=""
+            )
+
+            b_sec = st.text_input(
+                "Binance Secret Key",
+                type="password",
+                value=""
             )
 
             st.markdown("---")
@@ -473,9 +505,14 @@ if not st.session_state.logged_in:
             )
 
             reg_submit = st.form_submit_button(
-                "Seal Our Digital Bond Forever 🌹",
-                use_container_width=True
+                "🌹 Seal Our Digital Bond Forever",
+                use_container_width=True,
+                type="primary"
             )
+
+        # ----------------------------------------------------
+        # Process registration AFTER the form
+        # ----------------------------------------------------
 
         if reg_submit:
 
@@ -510,8 +547,8 @@ if not st.session_state.logged_in:
                         username=new_user.strip(),
                         password=new_password,
                         balance=init_bal,
-                        api_key="",
-                        secret_key="",
+                        api_key=b_key,
+                        secret_key=b_sec,
                         alpaca_key=alpaca_key,
                         alpaca_sec=alpaca_sec,
                         oanda_token=o_token,
@@ -523,18 +560,22 @@ if not st.session_state.logged_in:
 
                     st.success(
                         "🌹 Sacred space created successfully! "
-                        "Switch to the 'Unlock Your Sanctuary Vault' tab."
+                        "Switch to the 'Unlock Your Sanctuary Vault' "
+                        "tab to sign in."
                     )
 
                 else:
 
                     st.error(
-                        "This username already exists, "
-                        "or registration could not be completed."
+                        "This username already exists in our "
+                        "sanctuary. Please choose another."
                     )
 
-    st.stop()
+    # --------------------------------------------------------
+    # Stop here while user is not authenticated
+    # --------------------------------------------------------
 
+    st.stop()
 with st.sidebar:
     st.markdown(f"""
         <div style="text-align: center;">
