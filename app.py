@@ -229,93 +229,102 @@ if not st.session_state.logged_in:
         # Process login AFTER the form
         # ----------------------------------------------------
 
-        if login_submit:
+       if login_submit:
 
-            if not user.strip():
+    if not user.strip():
 
-                st.error("Please enter your username.")
+        st.error("Please enter your username.")
 
-            elif not password:
+    elif not password:
 
-                st.error("Please enter your password.")
+        st.error("Please enter your password.")
 
+    else:
+
+        profile = run_async_safe(
+            authenticate_user(
+                user.strip(),
+                password
+            )
+        )
+
+        # Existing account requires password migration
+        if (
+            profile
+            and profile.get("migration_required", False)
+        ):
+
+            st.session_state.migration_required = True
+            st.session_state.migration_username = (
+                profile["username"]
+            )
+
+            st.rerun()
+
+        # Normal successful login
+        elif profile:
+
+            st.session_state.logged_in = True
+            st.session_state.username = profile["username"]
+
+            st.session_state.api_key = profile.get(
+                "api_key", ""
+            )
+
+            st.session_state.secret_key = profile.get(
+                "secret_key", ""
+            )
+
+            st.session_state.alpaca_key = profile.get(
+                "alpaca_key", ""
+            )
+
+            st.session_state.alpaca_sec = profile.get(
+                "alpaca_sec", ""
+            )
+
+            st.session_state.oanda_token = profile.get(
+                "oanda_token", ""
+            )
+
+            st.session_state.oanda_account = profile.get(
+                "oanda_account", ""
+            )
+
+            # Get live balance
+            live_balance = get_live_account_balance(
+                st.session_state.alpaca_key,
+                st.session_state.alpaca_sec
+            )
+
+            if live_balance is not None:
+                st.session_state.balance = float(
+                    live_balance
+                )
             else:
-
-                profile = run_async_safe(
-                    authenticate_user(
-                        user.strip(),
-                        password
-                    )
+                st.session_state.balance = float(
+                    profile.get("balance", 0.0)
                 )
 
-                # ------------------------------------------------
-                # Existing account requires password migration
-                # ------------------------------------------------
+            run_async_safe(
+                update_user_balance(
+                    profile["username"],
+                    st.session_state.balance
+                )
+            )
 
-                if (
-                    profile
-                    and profile.get("migration_required", False)
-                ):
+            st.success(
+                "🔐 Sanctuary unlocked successfully."
+            )
 
-                    st.session_state.migration_required = True
-                    st.session_state.migration_username = (
-                        profile["username"]
-                    )
+            st.rerun()
 
-                    st.rerun()
+        # Failed login
+        else:
 
-                # ------------------------------------------------
-                # Normal successful login
-                # ------------------------------------------------
-
-                elif profile:
-
-                   if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.balance = 0.0
-    st.session_state.api_key = ""
-    st.session_state.secret_key = ""
-    st.session_state.alpaca_key = ""
-    st.session_state.alpaca_sec = ""
-    st.session_state.oanda_token = ""
-    st.session_state.oanda_account = ""
-    st.session_state.migration_required = False
-    st.session_state.migration_username = ""
-
-                    # --------------------------------------------
-                    # Get live Alpaca paper-trading balance
-                    # --------------------------------------------
-
-                    live_balance = get_live_account_balance(
-                        profile.get("alpaca_key", ""),
-                        profile.get("alpaca_sec", "")
-                    )
-
-                    st.session_state.balance = live_balance
-
-                    run_async_safe(
-                        update_user_balance(
-                            profile["username"],
-                            live_balance
-                        )
-                    )
-
-                    st.success(
-                        "🔐 Sanctuary unlocked successfully."
-                    )
-
-                    st.rerun()
-
-                # ------------------------------------------------
-                # Failed login
-                # ------------------------------------------------
-
-                else:
-
-                    st.error(
-                        "Invalid username or password."
-                    )
+            st.error(
+                "Invalid username or password."
+            )
 
     # ========================================================
     # PASSWORD MIGRATION
