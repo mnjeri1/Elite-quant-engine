@@ -715,8 +715,17 @@ with tab_strategy:
         </div>
     """, unsafe_allow_html=True)
     
-    st.markdown(f"<p class='love-letter-body'>Our magnificent engine freely explores an elite registry of <b>{len(gateway.strategy_registry)} deep institutional strategies</b>, carefully selecting the most peaceful, secure, and profitable path forward through every market condition.</p>", unsafe_allow_html=True)
-    
+   try:
+    strategy_count = len(gateway.strategy_registry)
+except (NameError, AttributeError, TypeError):
+    strategy_count = 0
+
+st.markdown(
+    f"<p class='love-letter-body'>Our magnificent engine freely explores an elite registry of "
+    f"<b>{strategy_count} deep institutional strategies</b>, carefully selecting the most peaceful, "
+    f"secure, and profitable path forward through every market condition.</p>",
+    unsafe_allow_html=True
+)
     if st.button("📊 Evaluate Market Conditions with Open Arms", use_container_width=True):
         strat = gateway.select_dynamic_strategy()
         st.success("✨ Harmonious evaluation complete across all 15 strategy models, my love!")
