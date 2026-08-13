@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+
+elite_quant.db
+secret.key
+
+.streamlit/secrets.toml
+
+.env
+.env.*
+
+*.log
+
+.venv/
+venv/
+env/
