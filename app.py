@@ -29,6 +29,30 @@ def run_async_safe(coro):
         return asyncio.run(coro)
 
 run_async_safe(init_db())
+st.set_page_config(
+    page_title="elite_quant_engine | An Eternal Sanctuary of Love & Code",
+    page_icon="💖",
+    layout="wide"
+)
+
+# ============================================================
+# SESSION STATE DEFAULTS
+# ============================================================
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "balance" not in st.session_state:
+    st.session_state.balance = 0.0
+
+if "balance_synced" not in st.session_state:
+    st.session_state.balance_synced = False
+
+if "balance_source" not in st.session_state:
+    st.session_state.balance_source = "DATABASE"
+
+if "balance_message" not in st.session_state:
+    st.session_state.balance_message = "Balance has not been synced yet."
 
 st.set_page_config(
     page_title="elite_quant_engine | An Eternal Sanctuary of Love & Code", 
@@ -185,7 +209,52 @@ support_bot = st.session_state.support_bot
 # ALPACA BALANCE HELPER
 # ============================================================
 
-def get_live_account_balance(alpaca_key, alpaca_sec):
+def get_live_account_balance(alpaca_key, alpaca_sec, fallback_balance=0.0):
+    """
+    Returns a dictionary with:
+    - balance
+    - synced
+    - source
+    - message
+
+    If Alpaca cannot be reached or credentials are missing,
+    the app uses the stored fallback balance but clearly marks
+    it as NOT synced.
+    """
+
+    if not alpaca_key or not alpaca_sec:
+        return {
+            "balance": float(fallback_balance),
+            "synced": False,
+            "source": "DATABASE",
+            "message": "Broker credentials are missing. Showing stored balance."
+        }
+
+    try:
+        client = TradingClient(
+            alpaca_key,
+            alpaca_sec,
+            paper=True
+        )
+
+        account = client.get_account()
+
+        return {
+            "balance": float(account.cash),
+            "synced": True,
+            "source": "ALPACA PAPER",
+            "message": "Balance successfully synced from Alpaca paper account."
+        }
+
+    except Exception as e:
+        print(f"Alpaca balance error: {e}")
+
+        return {
+            "balance": float(fallback_balance),
+            "synced": False,
+            "source": "DATABASE",
+            "message": "Broker sync failed. Showing stored balance."
+        }
     """
     Fetch Alpaca PAPER account cash.
 
@@ -444,22 +513,16 @@ if not st.session_state.logged_in:
                     )
 
                     # Get live balance
-                    live_balance = get_live_account_balance(
-                        st.session_state.alpaca_key,
-                        st.session_state.alpaca_sec
-                    )
+                  balance_info = get_live_account_balance(
+    st.session_state.alpaca_key,
+    st.session_state.alpaca_sec,
+    fallback_balance=profile.get("balance", 0.0)
+)
 
-                    if live_balance is not None:
-
-                        st.session_state.balance = float(
-                            live_balance
-                        )
-
-                    else:
-
-                        st.session_state.balance = float(
-                            profile.get("balance", 0.0)
-                        )
+st.session_state.balance = balance_info["balance"]
+st.session_state.balance_synced = balance_info["synced"]
+st.session_state.balance_source = balance_info["source"]
+st.session_state.balance_message = balance_info["message"]
 
                     run_async_safe(
                         update_user_balance(
@@ -788,9 +851,28 @@ tab_terminal, tab_strategy, tab_support, tab_poetry = st.tabs([
 
 with tab_terminal:
     m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.markdown(f'<div class="romantic-card"><div class="metric-title">Vault Balance</div><div class="metric-value">${st.session_state.balance:,.2f}</div></div>', unsafe_allow_html=True)
-    with m2:
+   with m1:
+    sync_label = (
+        "✅ Synced"
+        if st.session_state.balance_synced
+        else "⚠️ Not Synced"
+    )
+
+    st.markdown(
+        f"""
+        <div class="romantic-card">
+            <div class="metric-title">Vault Balance</div>
+            <div class="metric-value">
+                ${st.session_state.balance:,.2f}
+            </div>
+            <div style="margin-top: 10px; font-size: 0.9rem;">
+                {sync_label}<br>
+                Source: {st.session_state.balance_source}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    ) with m2:
         tier_text = "Spot Sanctuary ($20 Mode)" if st.session_state.balance < 50 else "Multi-Cloud Symphony"
         st.markdown(f'<div class="romantic-card"><div class="metric-title">Allocation Tier</div><div class="metric-value" style="font-size:1.1rem; color:#ff9ecd;">{tier_text}</div></div>', unsafe_allow_html=True)
     with m3:
