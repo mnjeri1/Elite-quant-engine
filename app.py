@@ -166,6 +166,119 @@ if "migration_required" not in st.session_state:
 if "migration_username" not in st.session_state:
     st.session_state.migration_username = ""
 
+
+# ============================================================
+# ENGINE / SUPPORT BOT INITIALIZATION
+# ============================================================
+
+if "gateway" not in st.session_state:
+    st.session_state.gateway = InstitutionalGateway()
+
+if "support_bot" not in st.session_state:
+    st.session_state.support_bot = SanctuarySupportBot()
+
+gateway = st.session_state.gateway
+support_bot = st.session_state.support_bot
+
+
+# ============================================================
+# ALPACA BALANCE HELPER
+# ============================================================
+
+def get_live_account_balance(alpaca_key, alpaca_sec):
+    """
+    Fetch Alpaca PAPER account cash.
+
+    Returns None if credentials are missing or the broker
+    cannot be reached. We do not invent a fallback balance.
+    """
+
+    if not alpaca_key or not alpaca_sec:
+        return None
+
+    try:
+        client = TradingClient(
+            alpaca_key,
+            alpaca_sec,
+            paper=True
+        )
+
+        account = client.get_account()
+
+        return float(account.cash)
+
+    except Exception as e:
+        print(f"Alpaca balance error: {e}")
+        return None
+
+
+# ============================================================
+# PAPER TRADE HELPER
+# ============================================================
+
+def execute_multiverse_trade(
+    symbol,
+    qty,
+    alpaca_key,
+    alpaca_sec,
+    side_buy=True
+):
+    """
+    PAPER TRADING ONLY for now.
+
+    Live trading will remain disabled until the balance-aware
+    risk engine and position sizing are implemented.
+    """
+
+    if not alpaca_key or not alpaca_sec:
+        return {
+            "status": "ERROR",
+            "details": "Alpaca API credentials are missing."
+        }
+
+    if qty <= 0:
+        return {
+            "status": "ERROR",
+            "details": "Order quantity must be greater than zero."
+        }
+
+    try:
+        client = TradingClient(
+            alpaca_key,
+            alpaca_sec,
+            paper=True
+        )
+
+        side = (
+            OrderSide.BUY
+            if side_buy
+            else OrderSide.SELL
+        )
+
+        order_details = MarketOrderRequest(
+            symbol=symbol,
+            qty=qty,
+            side=side,
+            time_in_force=TimeInForce.DAY
+        )
+
+        response = client.submit_order(
+            order_data=order_details
+        )
+
+        return {
+            "status": "SUCCESS",
+            "mode": "PAPER",
+            "symbol": symbol,
+            "quantity": qty,
+            "order_id": str(response.id)
+        }
+
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "details": str(e)
+        }
 # ============================================================
 # AUTHENTICATION / LOGIN / REGISTRATION
 # ============================================================
