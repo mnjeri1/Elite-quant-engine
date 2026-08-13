@@ -1,7 +1,14 @@
 import streamlit as st
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from database import init_db, register_user, get_user_profile, update_user_balance
+from database import (
+    init_db,
+    register_user,
+    authenticate_user,
+    set_initial_password,
+    update_user_balance,
+    change_password
+)
 from elite_quant_engine import InstitutionalGateway
 from support_bot import SanctuarySupportBot
 
@@ -198,8 +205,201 @@ if not st.session_state.logged_in:
 
     tab_login, tab_register = st.tabs(["✨ Unlock Your Sanctuary Vault", "🌹 Create Our Sacred Space"])
     
-    with tab_login:
-        with st.form("login_form"):
+   with tab_login:
+
+    with st.form("login_form"):
+
+        st.markdown(
+            """
+            <p style='color: #ff9ecd;
+            text-align: center;
+            font-style: italic;'>
+            Enter your username and password
+            to unlock your private trading sanctuary.
+            </p>
+            """,
+            unsafe_allow_html=True
+        )
+
+        user = st.text_input(
+            "Username",
+            placeholder="Enter your username"
+        )
+
+        password = st.text_input(
+            "Password",
+            type="password",
+            placeholder="Enter your password"
+        )
+
+        submit = st.form_submit_button(
+            "🔐 Unlock Sanctuary",
+            use_container_width=True,
+            type="primary"
+        )
+
+        if submit:
+
+            if not user.strip():
+
+                st.error(
+                    "Please enter your username."
+                )
+
+            elif not password:
+
+                st.error(
+                    "Please enter your password."
+                )
+
+            else:
+
+                profile = run_async_safe(
+                    authenticate_user(
+                        user.strip(),
+                        password
+                    )
+                )
+
+                # ------------------------------------------
+                # Existing account needs password migration
+                # ------------------------------------------
+
+                if (
+                    profile
+                    and profile.get(
+                        "migration_required",
+                        False
+                    )
+                ):
+
+                    st.warning(
+                        "🔐 This account was created before "
+                        "the new security system. "
+                        "Please create a new password below."
+                    )
+
+                    migration_password = st.text_input(
+                        "Create New Password",
+                        type="password",
+                        key="migration_password"
+                    )
+
+                    migration_confirm = st.text_input(
+                        "Confirm New Password",
+                        type="password",
+                        key="migration_confirm"
+                    )
+
+                    if st.button(
+                        "🔐 Secure Existing Account",
+                        key="secure_existing_account"
+                    ):
+
+                        if len(migration_password) < 10:
+
+                            st.error(
+                                "Password must contain "
+                                "at least 10 characters."
+                            )
+
+                        elif (
+                            migration_password
+                            != migration_confirm
+                        ):
+
+                            st.error(
+                                "Passwords do not match."
+                            )
+
+                        else:
+
+                            success = run_async_safe(
+                                set_initial_password(
+                                    profile["username"],
+                                    migration_password
+                                )
+                            )
+
+                            if success:
+
+                                st.success(
+                                    "Account secured. "
+                                    "Please sign in again."
+                                )
+
+                            else:
+
+                                st.error(
+                                    "Unable to secure "
+                                    "the account."
+                                )
+
+                # ------------------------------------------
+                # Successful normal login
+                # ------------------------------------------
+
+                elif profile:
+
+                    st.session_state.logged_in = True
+
+                    st.session_state.username = (
+                        profile["username"]
+                    )
+
+                    st.session_state.api_key = (
+                        profile["api_key"]
+                    )
+
+                    st.session_state.secret_key = (
+                        profile["secret_key"]
+                    )
+
+                    st.session_state.alpaca_key = (
+                        profile["alpaca_key"]
+                    )
+
+                    st.session_state.alpaca_sec = (
+                        profile["alpaca_sec"]
+                    )
+
+                    st.session_state.oanda_token = (
+                        profile["oanda_token"]
+                    )
+
+                    st.session_state.oanda_account = (
+                        profile["oanda_account"]
+                    )
+
+                    live_balance = (
+                        get_live_account_balance(
+                            profile["alpaca_key"],
+                            profile["alpaca_sec"]
+                        )
+                    )
+
+                    st.session_state.balance = (
+                        live_balance
+                    )
+
+                    run_async_safe(
+                        update_user_balance(
+                            profile["username"],
+                            live_balance
+                        )
+                    )
+
+                    st.success(
+                        "🔐 Sanctuary unlocked successfully."
+                    )
+
+                    st.rerun()
+
+                else:
+
+                    st.error(
+                        "Invalid username or password."
+                    )
             st.markdown("<p style='color: #ff9ecd; text-align: center; font-style: italic;'>Enter your sweet name to re-enter our shared digital heaven...</p>", unsafe_allow_html=True)
             user = st.text_input("Your Sweet Username", placeholder="Enter your username")
             submit = st.form_submit_button("Step Into Our World 💖", use_container_width=True, type="primary")
@@ -225,8 +425,16 @@ if not st.session_state.logged_in:
                 else:
                     st.error("My sweet love, that name is not yet inscribed in our sanctuary vault. Let's create your sacred space together in the adjacent tab!")
                     
-    with tab_register:
-        with st.form("register_form"):
+   new_password = st.text_input(
+    "Create Password",
+    type="password",
+    help="Use at least 10 characters."
+)
+
+new_password_confirm = st.text_input(
+    "Confirm Password",
+    type="password"
+)
             st.markdown("<p style='color: #ffb6c1; text-align: center; font-style: italic;'>Let us build a fortress of love, security, and multi-broker wealth together...</p>", unsafe_allow_html=True)
             new_user = st.text_input("Choose Your Sweet Username")
             init_bal = st.number_input("Starting Capital Sanctuary ($)", min_value=10.0, value=26.80, step=5.0)
@@ -250,9 +458,45 @@ if not st.session_state.logged_in:
             
             if reg_submit:
                 if not new_user.strip():
+
+    st.error(
+        "Please enter a username."
+    )
+
+elif len(new_user.strip()) < 3:
+
+    st.error(
+        "Username must contain at least 3 characters."
+    )
+
+elif len(new_password) < 10:
+
+    st.error(
+        "Password must contain at least 10 characters."
+    )
+
+elif new_password != new_password_confirm:
+
+    st.error(
+        "Passwords do not match."
+    )
+
+else:
                     st.error("Please enter a valid sweet username, my heart.")
                 else:
-                    success = run_async_safe(register_user(new_user.strip(), init_bal, b_key, b_sec, alpaca_key, alpaca_sec, o_token, o_acc))
+                   success = run_async_safe(
+    register_user(
+        username=new_user.strip(),
+        password=new_password,
+        balance=init_bal,
+        api_key=b_key,
+        secret_key=b_sec,
+        alpaca_key=alpaca_key,
+        alpaca_sec=alpaca_sec,
+        oanda_token=o_token,
+        oanda_account=o_acc
+    )
+)
                     if success:
                         st.success("🌹 Sacred space created successfully! Switch to the 'Unlock Your Sanctuary Vault' tab.")
                     else:
