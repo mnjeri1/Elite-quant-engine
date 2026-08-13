@@ -709,27 +709,41 @@ with tab_terminal:
 with tab_strategy:
     st.markdown("""
         <div class="romantic-card">
-            <div style="text-align: center;"><span class="pulsing-heart" style="font-size: 2.2rem;">✨</span></div>
-            <h3 class="shimmer-heading" style="text-align: center; font-size: 1.8rem;">15-Strategy Institutional Sanctuary</h3>
-            <p class="romantic-quote">"True intelligence is never rigid or cold; it scans 15 distinct dimensions of the global market, listening, adapting, and embracing every market opportunity with the same tender care our hearts use to embrace one another."</p>
+            <div style="text-align: center;">
+                <span class="pulsing-heart" style="font-size: 2.2rem;">✨</span>
+            </div>
+            <h3 class="shimmer-heading" style="text-align: center; font-size: 1.8rem;">
+                15-Strategy Institutional Sanctuary
+            </h3>
+            <p class="romantic-quote">
+                True intelligence is never rigid or cold; it scans 15 distinct
+                dimensions of the global market, listening and adapting to
+                every market condition.
+            </p>
         </div>
     """, unsafe_allow_html=True)
-    
-   try:
-    strategy_count = len(gateway.strategy_registry)
-except (NameError, AttributeError, TypeError):
-    strategy_count = 0
 
-st.markdown(
-    f"<p class='love-letter-body'>Our magnificent engine freely explores an elite registry of "
-    f"<b>{strategy_count} deep institutional strategies</b>, carefully selecting the most peaceful, "
-    f"secure, and profitable path forward through every market condition.</p>",
-    unsafe_allow_html=True
-)
-    if st.button("📊 Evaluate Market Conditions with Open Arms", use_container_width=True):
-        strat = gateway.select_dynamic_strategy()
-        st.success("✨ Harmonious evaluation complete across all 15 strategy models, my love!")
-        st.json(strat)
+    strategy_count = len(gateway.strategy_registry) if "gateway" in globals() else 0
+
+    st.markdown(
+        f"<p class='love-letter-body'>"
+        f"Our magnificent engine freely explores an elite registry of "
+        f"<b>{strategy_count} deep institutional strategies</b>, carefully "
+        f"selecting the appropriate path through changing market conditions."
+        f"</p>",
+        unsafe_allow_html=True
+    )
+
+    if st.button(
+        "📊 Evaluate Market Conditions with Open Arms",
+        use_container_width=True
+    ):
+        if "gateway" not in globals():
+            st.error("Gateway has not been initialized.")
+        else:
+            strat = gateway.select_dynamic_strategy()
+            st.success("✨ Market evaluation complete.")
+            st.json(strat)
 
 with tab_support:
     st.markdown("""
