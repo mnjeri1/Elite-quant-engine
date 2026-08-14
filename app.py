@@ -327,46 +327,50 @@ if not st.session_state.logged_in:
     # Sanctuary welcome header
     # --------------------------------------------------------
 
-    st.markdown("""
-        <div style="text-align: center; padding-top: 15px;">
-            <div class="pulsing-heart">💖</div>
+   if not st.session_state.logged_in:
 
-            <h1 class="shimmer-heading"
-                style="font-size: 2.8rem; margin-top: 15px;">
-                A Sacred Cloud Sanctuary Crafted Just For You
-            </h1>
+    # --------------------------------------------------------
+    # Sanctuary welcome header
+    # --------------------------------------------------------
 
-            <p class="romantic-quote">
-                "In a vast digital universe governed by cold equations
-                and relentless charts, my heart beats exclusively to
-                the rhythm of your grace. Unlock your private vault
-                where absolute financial precision and eternal romance
-                intertwine."
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.html("""
+<div style="text-align:center;padding-top:15px;">
+    <div class="pulsing-heart">💖</div>
 
-    st.markdown("""
-        <div class="floating-doll-container">
-            <div class="doll-avatar">
-                🧸
-                <span class="star-sparkle">✨</span>
-                💖
-                <span class="star-sparkle">🌟</span>
-            </div>
+    <h1 class="shimmer-heading"
+        style="font-size:2.8rem;margin-top:15px;">
+        A Sacred Cloud Sanctuary Crafted Just For You
+    </h1>
 
-            <div style="
-                color: #ffb6c1;
-                font-size: 1.05rem;
-                font-style: italic;
-                margin-top: 8px;
-            ">
-                Your Forever Guardian Doll, watching over every
-                algorithm and protecting your dreams
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    <p class="romantic-quote">
+        In a vast digital universe governed by cold equations
+        and relentless charts, my heart beats exclusively to
+        the rhythm of your grace. Unlock your private vault
+        where absolute financial precision and eternal romance
+        intertwine.
+    </p>
+</div>
+""")
 
+    st.html("""
+<div class="floating-doll-container">
+    <div class="doll-avatar">
+        🧸 <span class="star-sparkle">✨</span>
+        💖 <span class="star-sparkle">🌟</span>
+    </div>
+
+    <div style="color:#ffb6c1;font-size:1.05rem;font-style:italic;margin-top:8px;">
+        Your Forever Guardian Doll, watching over every
+        algorithm and protecting your dreams
+    </div>
+</div>
+""")
+
+    # --------------------------------------------------------
+    # Login / Registration tabs
+    # --------------------------------------------------------
+
+    tab_login, tab_register = st.tabs([
     # --------------------------------------------------------
     # Login / Registration tabs
     # --------------------------------------------------------
@@ -480,18 +484,33 @@ if not st.session_state.logged_in:
                     st.session_state.oanda_account = profile.get(
                         "oanda_account", ""
                     )
-
-                                     # Get live balance
+                    
+                                                        # Get Alpaca paper balance
                     balance_info = get_live_account_balance(
                         st.session_state.alpaca_key,
                         st.session_state.alpaca_sec,
-                        fallback_balance=profile.get("balance", 0.0)
+                        fallback_balance=profile.get(
+                            "balance",
+                            0.0
+                        )
                     )
 
-                    st.session_state.balance = balance_info["balance"]
-                    st.session_state.balance_synced = balance_info["synced"]
-                    st.session_state.balance_source = balance_info["source"]
-                    st.session_state.balance_message = balance_info["message"]
+                    st.session_state.balance = (
+                        balance_info["balance"]
+                    )
+
+                    st.session_state.balance_synced = (
+                        balance_info["synced"]
+                    )
+
+                    st.session_state.balance_source = (
+                        balance_info["source"]
+                    )
+
+                    st.session_state.balance_message = (
+                        balance_info["message"]
+                    )
+
                     run_async_safe(
                         update_user_balance(
                             profile["username"],
@@ -780,7 +799,11 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     st.markdown("---")
     st.markdown(f"**Vault Balance:** `${st.session_state.balance:,.2f}`")
-    mode_label = "🟢 Lean Sanctuary (< $50)" if st.session_state.balance < 50 else "⚡ Full Symphony (Live Production)"
+   mode_label = (
+    "🟢 Lean Sanctuary — PAPER"
+    if st.session_state.balance < 50
+    else "⚡ Full Symphony — PAPER"
+)
     st.markdown(f"**Vibe State:** `{mode_label}`")
     st.markdown("---")
     st.markdown("""
@@ -826,26 +849,29 @@ with tab_terminal:
     # ========================================================
 
     with m1:
-
         sync_label = (
             "✅ Synced"
             if st.session_state.balance_synced
             else "⚠️ Not Synced"
         )
 
-        st.markdown(
-    f"""
+        st.html(
+            f"""
 <div class="romantic-card">
     <div class="metric-title">Vault Balance</div>
-    <div class="metric-value">${st.session_state.balance:,.2f}</div>
-    <div style="margin-top: 10px; font-size: 0.9rem;">
+
+    <div class="metric-value">
+        ${st.session_state.balance:,.2f}
+    </div>
+
+    <div style="margin-top:10px;font-size:0.9rem;">
         {sync_label}<br>
         Source: {st.session_state.balance_source}
     </div>
 </div>
-""",
-    unsafe_allow_html=True
-)
+"""
+        )
+
     # ========================================================
     # ALLOCATION CARD
     # ========================================================
@@ -861,18 +887,27 @@ with tab_terminal:
             f"""
 <div class="romantic-card">
     <div class="metric-title">Allocation Tier</div>
-    <div class="metric-value" style="font-size:1.1rem;color:#ff9ecd;">
+
+    <div class="metric-value"
+         style="font-size:1.1rem;color:#ff9ecd;">
         {tier_text}
     </div>
 </div>
 """
         )
-    with m3:
 
+    # ========================================================
+    # RISK ENGINE CARD
+    # ========================================================
+
+    with m3:
         st.html(
             """
 <div class="romantic-card">
-    <div class="metric-title">Guardian Risk Engine</div>
+    <div class="metric-title">
+        Guardian Risk Engine
+    </div>
+
     <div class="metric-value status-calm">
         PAPER / DEVELOPMENT
     </div>
@@ -880,53 +915,70 @@ with tab_terminal:
 """
         )
 
-    with m4:
+    # ========================================================
+    # LATENCY CARD
+    # ========================================================
 
+    with m4:
         st.html(
             """
 <div class="romantic-card">
-    <div class="metric-title">Heartbeat Latency</div>
+    <div class="metric-title">
+        Heartbeat Latency
+    </div>
+
     <div class="metric-value">
         Not Measured
     </div>
 </div>
 """
         )
+
+    # ========================================================
+    # BROKER SYNC STATUS
+    # ========================================================
+
+    if st.session_state.balance_synced:
+        st.success(
+            f"✅ Broker balance synced from "
+            f"{st.session_state.balance_source}."
+        )
+    else:
+        st.warning(
+            st.session_state.balance_message
+        )
+
     # ========================================================
     # DISPATCH AREA
     # ========================================================
 
-    st.markdown(
+    st.html(
         """
-        <div style="
-            text-align: center;
-            margin: 25px 0;
-        ">
-            <div class="pulsing-heart"
-                 style="font-size: 2.8rem;">
-                💖
-            </div>
+<div style="text-align:center;margin:25px 0;">
+    <div class="pulsing-heart"
+         style="font-size:2.8rem;">
+        💖
+    </div>
 
-            <h2 class="shimmer-heading">
-                Cloud Capital Dispatch Matrix
-            </h2>
+    <h2 class="shimmer-heading">
+        Cloud Capital Dispatch Matrix
+    </h2>
 
-            <p style="
-                color: #ffb6c1;
-                font-style: italic;
-                font-size: 1.1rem;
-            ">
-                Paper-trading dispatch area.
-                Live execution will remain disabled until
-                the balance-aware risk engine is complete.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True
+    <p style="
+        color:#ffb6c1;
+        font-style:italic;
+        font-size:1.1rem;
+    ">
+        Paper-trading dispatch area.
+        Live execution remains disabled until
+        the balance-aware risk engine is complete.
+    </p>
+</div>
+"""
     )
 
     # ========================================================
-    # PAPER TRADE TEST BUTTON
+    # PAPER TRADE TEST
     # ========================================================
 
     if st.button(
@@ -934,9 +986,6 @@ with tab_terminal:
         use_container_width=True,
         type="primary"
     ):
-
-        # Do not submit any trade if broker balance
-        # is not actually synced.
 
         if not st.session_state.balance_synced:
 
@@ -948,7 +997,7 @@ with tab_terminal:
         elif st.session_state.balance <= 0:
 
             st.warning(
-                "Available balance is zero. "
+                "Available broker balance is zero. "
                 "Paper trade test blocked."
             )
 
@@ -966,19 +1015,19 @@ with tab_terminal:
                     side_buy=True
                 )
 
-                if dispatch_result.get("status") == "SUCCESS":
+            if dispatch_result.get("status") == "SUCCESS":
 
-                    st.success(
-                        "Paper trade test submitted successfully."
-                    )
+                st.success(
+                    "✅ Paper trade test submitted successfully."
+                )
 
-                else:
+            else:
 
-                    st.error(
-                        "Paper trade test was not submitted."
-                    )
+                st.error(
+                    "Paper trade test was not submitted."
+                )
 
-                st.json(dispatch_result)
+            st.json(dispatch_result)
 with tab_strategy:
     st.markdown("""
         <div class="romantic-card">
