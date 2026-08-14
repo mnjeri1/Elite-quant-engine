@@ -371,11 +371,6 @@ if not st.session_state.logged_in:
     # --------------------------------------------------------
 
     tab_login, tab_register = st.tabs([
-    # --------------------------------------------------------
-    # Login / Registration tabs
-    # --------------------------------------------------------
-
-    tab_login, tab_register = st.tabs([
         "✨ Unlock Your Sanctuary Vault",
         "🌹 Create Our Sacred Space"
     ])
