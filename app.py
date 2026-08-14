@@ -54,12 +54,6 @@ if "balance_source" not in st.session_state:
 if "balance_message" not in st.session_state:
     st.session_state.balance_message = "Balance has not been synced yet."
 
-st.set_page_config(
-    page_title="elite_quant_engine | An Eternal Sanctuary of Love & Code", 
-    page_icon="💖", 
-    layout="wide"
-)
-
 st.markdown("""
 <style>
     .stApp { 
@@ -255,32 +249,7 @@ def get_live_account_balance(alpaca_key, alpaca_sec, fallback_balance=0.0):
             "source": "DATABASE",
             "message": "Broker sync failed. Showing stored balance."
         }
-    """
-    Fetch Alpaca PAPER account cash.
-
-    Returns None if credentials are missing or the broker
-    cannot be reached. We do not invent a fallback balance.
-    """
-
-    if not alpaca_key or not alpaca_sec:
-        return None
-
-    try:
-        client = TradingClient(
-            alpaca_key,
-            alpaca_sec,
-            paper=True
-        )
-
-        account = client.get_account()
-
-        return float(account.cash)
-
-    except Exception as e:
-        print(f"Alpaca balance error: {e}")
-        return None
-
-
+  
 # ============================================================
 # PAPER TRADE HELPER
 # ============================================================
@@ -865,28 +834,18 @@ with tab_terminal:
         )
 
         st.markdown(
-            f"""
-            <div class="romantic-card">
-                <div class="metric-title">
-                    Vault Balance
-                </div>
-
-                <div class="metric-value">
-                    ${st.session_state.balance:,.2f}
-                </div>
-
-                <div style="
-                    margin-top: 10px;
-                    font-size: 0.9rem;
-                ">
-                    {sync_label}<br>
-                    Source: {st.session_state.balance_source}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
+    f"""
+<div class="romantic-card">
+    <div class="metric-title">Vault Balance</div>
+    <div class="metric-value">${st.session_state.balance:,.2f}</div>
+    <div style="margin-top: 10px; font-size: 0.9rem;">
+        {sync_label}<br>
+        Source: {st.session_state.balance_source}
+    </div>
+</div>
+""",
+    unsafe_allow_html=True
+)
     # ========================================================
     # ALLOCATION CARD
     # ========================================================
