@@ -850,7 +850,7 @@ with tab_terminal:
     # ALLOCATION CARD
     # ========================================================
 
-        with m2:
+           with m2:
 
         tier_text = (
             "Spot Sanctuary ($20 Mode)"
