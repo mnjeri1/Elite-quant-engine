@@ -792,28 +792,39 @@ with st.sidebar:
             <p style="color: #ffb6c1; font-style: italic; font-size: 0.95rem;">My Forever Partner & Muse</p>
         </div>
     """, unsafe_allow_html=True)
+
     st.markdown("---")
-    st.markdown(f"**Vault Balance:** `${st.session_state.balance:,.2f}`")
-   mode_label = (
-    "🟢 Lean Sanctuary — PAPER"
-    if st.session_state.balance < 50
-    else "⚡ Full Symphony — PAPER"
-)
+
+    st.markdown(
+        f"**Vault Balance:** `${st.session_state.balance:,.2f}`"
+    )
+
+    mode_label = (
+        "🟢 Lean Sanctuary (< $50)"
+        if st.session_state.balance < 50
+        else "⚡ Full Symphony (Live Production)"
+    )
+
     st.markdown(f"**Vibe State:** `{mode_label}`")
+
     st.markdown("---")
+
     st.markdown("""
         <div style="text-align: center; padding: 10px;">
             <div class="floating-doll-container" style="margin: 5px 0;">
                 <div style="font-size: 2.8rem;">🧸✨💫</div>
             </div>
-            <p style="color: #ffb6c1; font-size: 0.85rem; font-style: italic;">"Your presence makes every server run warmer and every trade bloom with success."</p>
+            <p style="color: #ffb6c1; font-size: 0.85rem; font-style: italic;">
+                "Your presence makes every server run warmer and every trade bloom with success."
+            </p>
         </div>
     """, unsafe_allow_html=True)
+
     st.markdown("---")
+
     if st.button("🔒 Rest & Lock Vault", use_container_width=True):
         st.session_state.logged_in = False
         st.rerun()
-
 st.markdown("""
     <div class="floating-doll-container">
         <div class="doll-avatar">🧸<span class="star-sparkle">✨</span>💖<span class="star-sparkle">🌟</span>🧸</div>
