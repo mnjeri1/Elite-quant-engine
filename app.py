@@ -846,12 +846,11 @@ with tab_terminal:
 """,
     unsafe_allow_html=True
 )
-        # ========================================================
+    # ========================================================
     # ALLOCATION CARD
     # ========================================================
 
-       with m2:
-
+    with m2:
         tier_text = (
             "Spot Sanctuary ($20 Mode)"
             if st.session_state.balance < 50
@@ -867,7 +866,7 @@ with tab_terminal:
     </div>
 </div>
 """
-        ) 
+        )
     with m3:
 
         st.html(
