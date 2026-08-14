@@ -850,7 +850,7 @@ with tab_terminal:
     # ALLOCATION CARD
     # ========================================================
 
-    with m2:
+        with m2:
 
         tier_text = (
             "Spot Sanctuary ($20 Mode)"
@@ -858,67 +858,42 @@ with tab_terminal:
             else "Multi-Cloud Symphony"
         )
 
-        st.markdown(
+        st.html(
             f"""
-            <div class="romantic-card">
-                <div class="metric-title">
-                    Allocation Tier
-                </div>
-
-                <div class="metric-value"
-                     style="
-                        font-size: 1.1rem;
-                        color: #ff9ecd;
-                     ">
-                    {tier_text}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
+<div class="romantic-card">
+    <div class="metric-title">Allocation Tier</div>
+    <div class="metric-value" style="font-size:1.1rem;color:#ff9ecd;">
+        {tier_text}
+    </div>
+</div>
+"""
         )
-
-    # ========================================================
-    # RISK ENGINE CARD
-    # ========================================================
 
     with m3:
 
-        st.markdown(
+        st.html(
             """
-            <div class="romantic-card">
-                <div class="metric-title">
-                    Guardian Risk Engine
-                </div>
-
-                <div class="metric-value status-calm">
-                    PAPER / DEVELOPMENT
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
+<div class="romantic-card">
+    <div class="metric-title">Guardian Risk Engine</div>
+    <div class="metric-value status-calm">
+        PAPER / DEVELOPMENT
+    </div>
+</div>
+"""
         )
-
-    # ========================================================
-    # LATENCY CARD
-    # ========================================================
 
     with m4:
 
-        st.markdown(
+        st.html(
             """
-            <div class="romantic-card">
-                <div class="metric-title">
-                    Heartbeat Latency
-                </div>
-
-                <div class="metric-value">
-                    Not Measured
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
+<div class="romantic-card">
+    <div class="metric-title">Heartbeat Latency</div>
+    <div class="metric-value">
+        Not Measured
+    </div>
+</div>
+"""
         )
-
     # ========================================================
     # DISPATCH AREA
     # ========================================================
