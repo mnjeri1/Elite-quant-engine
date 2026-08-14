@@ -846,11 +846,11 @@ with tab_terminal:
 """,
     unsafe_allow_html=True
 )
-    # ========================================================
+        # ========================================================
     # ALLOCATION CARD
     # ========================================================
 
-           with m2:
+    with m2:
 
         tier_text = (
             "Spot Sanctuary ($20 Mode)"
@@ -858,7 +858,7 @@ with tab_terminal:
             else "Multi-Cloud Symphony"
         )
 
-        st.html(
+               st.html(
             f"""
 <div class="romantic-card">
     <div class="metric-title">Allocation Tier</div>
@@ -867,7 +867,8 @@ with tab_terminal:
     </div>
 </div>
 """
-        )
+               ) 
+        ) 
 
     with m3:
 
