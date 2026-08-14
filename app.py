@@ -512,18 +512,17 @@ if not st.session_state.logged_in:
                         "oanda_account", ""
                     )
 
-                    # Get live balance
-                  balance_info = get_live_account_balance(
-    st.session_state.alpaca_key,
-    st.session_state.alpaca_sec,
-    fallback_balance=profile.get("balance", 0.0)
-)
+                                     # Get live balance
+                    balance_info = get_live_account_balance(
+                        st.session_state.alpaca_key,
+                        st.session_state.alpaca_sec,
+                        fallback_balance=profile.get("balance", 0.0)
+                    )
 
-st.session_state.balance = balance_info["balance"]
-st.session_state.balance_synced = balance_info["synced"]
-st.session_state.balance_source = balance_info["source"]
-st.session_state.balance_message = balance_info["message"]
-
+                    st.session_state.balance = balance_info["balance"]
+                    st.session_state.balance_synced = balance_info["synced"]
+                    st.session_state.balance_source = balance_info["source"]
+                    st.session_state.balance_message = balance_info["message"]
                     run_async_safe(
                         update_user_balance(
                             profile["username"],
@@ -850,57 +849,204 @@ tab_terminal, tab_strategy, tab_support, tab_poetry = st.tabs([
 ])
 
 with tab_terminal:
+
     m1, m2, m3, m4 = st.columns(4)
-   with m1:
-    sync_label = (
-        "✅ Synced"
-        if st.session_state.balance_synced
-        else "⚠️ Not Synced"
-    )
+
+    # ========================================================
+    # BALANCE CARD
+    # ========================================================
+
+    with m1:
+
+        sync_label = (
+            "✅ Synced"
+            if st.session_state.balance_synced
+            else "⚠️ Not Synced"
+        )
+
+        st.markdown(
+            f"""
+            <div class="romantic-card">
+                <div class="metric-title">
+                    Vault Balance
+                </div>
+
+                <div class="metric-value">
+                    ${st.session_state.balance:,.2f}
+                </div>
+
+                <div style="
+                    margin-top: 10px;
+                    font-size: 0.9rem;
+                ">
+                    {sync_label}<br>
+                    Source: {st.session_state.balance_source}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ========================================================
+    # ALLOCATION CARD
+    # ========================================================
+
+    with m2:
+
+        tier_text = (
+            "Spot Sanctuary ($20 Mode)"
+            if st.session_state.balance < 50
+            else "Multi-Cloud Symphony"
+        )
+
+        st.markdown(
+            f"""
+            <div class="romantic-card">
+                <div class="metric-title">
+                    Allocation Tier
+                </div>
+
+                <div class="metric-value"
+                     style="
+                        font-size: 1.1rem;
+                        color: #ff9ecd;
+                     ">
+                    {tier_text}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ========================================================
+    # RISK ENGINE CARD
+    # ========================================================
+
+    with m3:
+
+        st.markdown(
+            """
+            <div class="romantic-card">
+                <div class="metric-title">
+                    Guardian Risk Engine
+                </div>
+
+                <div class="metric-value status-calm">
+                    PAPER / DEVELOPMENT
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ========================================================
+    # LATENCY CARD
+    # ========================================================
+
+    with m4:
+
+        st.markdown(
+            """
+            <div class="romantic-card">
+                <div class="metric-title">
+                    Heartbeat Latency
+                </div>
+
+                <div class="metric-value">
+                    Not Measured
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ========================================================
+    # DISPATCH AREA
+    # ========================================================
 
     st.markdown(
-        f"""
-        <div class="romantic-card">
-            <div class="metric-title">Vault Balance</div>
-            <div class="metric-value">
-                ${st.session_state.balance:,.2f}
+        """
+        <div style="
+            text-align: center;
+            margin: 25px 0;
+        ">
+            <div class="pulsing-heart"
+                 style="font-size: 2.8rem;">
+                💖
             </div>
-            <div style="margin-top: 10px; font-size: 0.9rem;">
-                {sync_label}<br>
-                Source: {st.session_state.balance_source}
-            </div>
+
+            <h2 class="shimmer-heading">
+                Cloud Capital Dispatch Matrix
+            </h2>
+
+            <p style="
+                color: #ffb6c1;
+                font-style: italic;
+                font-size: 1.1rem;
+            ">
+                Paper-trading dispatch area.
+                Live execution will remain disabled until
+                the balance-aware risk engine is complete.
+            </p>
         </div>
         """,
         unsafe_allow_html=True
-    ) with m2:
-        tier_text = "Spot Sanctuary ($20 Mode)" if st.session_state.balance < 50 else "Multi-Cloud Symphony"
-        st.markdown(f'<div class="romantic-card"><div class="metric-title">Allocation Tier</div><div class="metric-value" style="font-size:1.1rem; color:#ff9ecd;">{tier_text}</div></div>', unsafe_allow_html=True)
-    with m3:
-        st.markdown('<div class="romantic-card"><div class="metric-title">Guardian Risk Engine</div><div class="metric-value status-calm">LIVE PRODUCTION</div></div>', unsafe_allow_html=True)
-    with m4:
-        st.markdown('<div class="romantic-card"><div class="metric-title">Heartbeat Latency</div><div class="metric-value">0.7 ms</div></div>', unsafe_allow_html=True)
+    )
 
-    st.markdown("""
-        <div style="text-align: center; margin: 25px 0;">
-            <div class="pulsing-heart" style="font-size: 2.8rem;">💖</div>
-            <h2 class="shimmer-heading">Cloud Capital Dispatch Matrix</h2>
-            <p style="color: #ffb6c1; font-style: italic; font-size: 1.1rem;">Trigger live multi-asset dispatches across Alpaca and OANDA wrapped in absolute mathematical safety and infinite romantic warmth.</p>
-        </div>
-    """, unsafe_allow_html=True)
+    # ========================================================
+    # PAPER TRADE TEST BUTTON
+    # ========================================================
 
-    if st.button("🚀 Run Live Cloud Capital Dispatch with All My Love", use_container_width=True, type="primary"):
-        with st.spinner("Guiding live transactions safely across Alpaca and OANDA cloud gateways with gentle care..."):
-            # Execute sample multi-asset trade safely via Alpaca
-            dispatch_result = execute_multiverse_trade(
-                symbol="AAPL", 
-                qty=1, 
-                alpaca_key=st.session_state.alpaca_key, 
-                alpaca_sec=st.session_state.alpaca_sec, 
-                side_buy=True
+    if st.button(
+        "🧪 Run Paper Trade Test",
+        use_container_width=True,
+        type="primary"
+    ):
+
+        # Do not submit any trade if broker balance
+        # is not actually synced.
+
+        if not st.session_state.balance_synced:
+
+            st.warning(
+                "Broker balance is not synced. "
+                "Paper trade test blocked."
             )
-            st.success("💖 Dispatches evaluated live with absolute precision, security, and devotion!")
-            st.json(dispatch_result)
 
+        elif st.session_state.balance <= 0:
+
+            st.warning(
+                "Available balance is zero. "
+                "Paper trade test blocked."
+            )
+
+        else:
+
+            with st.spinner(
+                "Submitting paper-trading test order..."
+            ):
+
+                dispatch_result = execute_multiverse_trade(
+                    symbol="AAPL",
+                    qty=1,
+                    alpaca_key=st.session_state.alpaca_key,
+                    alpaca_sec=st.session_state.alpaca_sec,
+                    side_buy=True
+                )
+
+                if dispatch_result.get("status") == "SUCCESS":
+
+                    st.success(
+                        "Paper trade test submitted successfully."
+                    )
+
+                else:
+
+                    st.error(
+                        "Paper trade test was not submitted."
+                    )
+
+                st.json(dispatch_result)
 with tab_strategy:
     st.markdown("""
         <div class="romantic-card">
